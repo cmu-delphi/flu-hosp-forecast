@@ -1,0 +1,307 @@
+---
+title: Flu hospitalization forecasting
+description: Notebook to discuss hospitalization forecasting for the the 2021-2022 flu season.
+output:
+  html_document:
+    code_folding: hide
+---
+
+### Summary
+
+**Background:**
+
+* Flu (and COVID) hospitalization collected centrally by the HHS starting
+  this year (2021).
+* The CDC is asking for forecasts of flu hospitalization incidence at the 
+  weekly level.  Forecasts are due every Monday evening, for the following
+  four ending Epiweeks.  This means that if Monday is the forecast date, 
+  and we are predicting seven day averages, then we are to submit
+  forecasts for `ahead = c(5, 12, 19, 26)`.
+* Forecasts are to be submitted for the 50 US states, DC, VI, and PR; 
+  as well as national-level forecasts comprised of those 53 state-level
+  entities.  These distributional forecasts are to consist predictions at
+  23 quantiles.
+
+**This notebook:**
+
+* Exploratory data analysis examining the flu hospitalization signal and
+  comparing it to the COVID hospitalization signal (also new, through the
+  HHS) and the COVID cases signal.
+* Results from training the usual baseline (propagating the previous week
+  forward), as well as a quantile autoregressive model using 0, 7, and 14 
+  day lags (i.e., the same model used in the PNAS forecasting paper).
+* Here, we only predict and evaluate on the 7 "county-level" quantiles
+  prescribed by the COVIDhub, but the analysis is easily extensible to all
+  23 quantiles.
+* Training is done on the rates scale, but can be transformed to the counts
+  scale post hoc.  Evaluation is done both on the rates scale and on the
+  counts scale (recall, evaluation the counts scale merely means taking
+  a population-weighted aggregation [here, mean] of the WIS's.
+* In this preliminary analysis, the QAR forecaster beats the Baseline 
+  forecaster across aheads.  This is surprising to me, given that the EDA
+  suggests a local constant would be sufficient.  
+
+
+**Next steps:**
+
+* Iterate on the autoregressive model, if necessary.
+* Understand why the AR model is better than baseline when there doesn't seem
+  to be a timewise linear trend in the data.  My hypothesis is that some
+  kind of shrinkage is happening (joint model, so the means are being
+  estimated simultaneously).  We could verify this by exploring the
+  coefficients in the fitted model objects.
+* If we trust the AR model, re-train at all 23 quantiles and do this
+  evaluation exercise again.
+
+### Exploratory data analysis
+
+```{r setup, message=FALSE, warning=FALSE}
+library(covidcast)
+library(dplyr)
+library(tidyr)
+library(tibble)
+library(ggplot2)
+
+states_dc_pr_vi = c('al', 'ak', 'az', 'ar', 'ca', 'co', 'ct', 'dc', 'de', 'fl',
+                    'ga', 'hi', 'id', 'il', 'in', 'ia', 'ks', 'ky', 'la', 'me',
+                    'md', 'ma', 'mi', 'mn', 'ms', 'mo', 'mt', 'ne', 'nv', 'nh',
+                    'nj', 'nm', 'ny', 'nc', 'nd', 'oh', 'ok', 'or', 'pa', 'ri',
+                    'sc', 'sd', 'tn', 'tx', 'ut', 'vt', 'va', 'wa', 'wv', 'wi',
+                    'wy', 'pr', 'vi')
+```
+
+```{r define-eda-parameters}
+start_day =  '2020-05-01'
+end_day =    '2021-12-01'
+geo_type = 'state'
+
+hhs_source = 'hhs'
+flu_hosp_num  = 'confirmed_admissions_influenza_1d_7dav'
+flu_hosp_prop = 'confirmed_admissions_influenza_1d_prop_7dav'
+covid_hosp_num  = 'confirmed_admissions_covid_1d_7dav'
+covid_hosp_prop = 'confirmed_admissions_covid_1d_prop_7dav'
+
+jhu_source = 'jhu-csse'
+covid_case_num  = 'confirmed_7dav_incidence_num'
+covid_case_prop = 'confirmed_7dav_incidence_prop'
+```
+
+```{r pull-data, cache=TRUE, message=FALSE, warning=FALSE}
+flu_hosp_prop_data = covidcast_signal(data_source = hhs_source,
+                            signal = flu_hosp_prop,
+                            start_day = start_day,
+                            end_day = end_day,
+                            geo_type = geo_type
+    ) %>% tibble (
+    ) %>% filter (
+      geo_value %in% states_dc_pr_vi,
+    ) %>% select (
+      geo_value,
+      time_value,
+      value,
+    ) %>% mutate (
+      signal='flu_hosp_prop',
+    )
+
+covid_hosp_prop_data = covidcast_signal(data_source = hhs_source,
+                            signal = covid_hosp_prop,
+                            start_day = start_day,
+                            end_day = end_day,
+                            geo_type = geo_type
+    ) %>% tibble (
+    ) %>% filter (
+      geo_value %in% states_dc_pr_vi,
+    ) %>% select (
+      geo_value,
+      time_value,
+      value,
+    ) %>% mutate (
+      signal='covid_hosp_prop',
+    )
+
+covid_case_prop_data = covidcast_signal(data_source = jhu_source,
+                            signal = covid_case_prop,
+                            start_day = start_day,
+                            end_day = end_day,
+                            geo_type = geo_type
+    ) %>% tibble (
+    ) %>% filter (
+      geo_value %in% states_dc_pr_vi,
+    ) %>% select (
+      geo_value,
+      time_value,
+      value,
+    ) %>% mutate (
+      signal='covid_case_prop',
+    )
+
+data_tall = bind_rows(
+      flu_hosp_prop_data,
+      covid_hosp_prop_data,
+      covid_case_prop_data,
+    )
+
+data_wide = flu_hosp_prop_data %>% select (
+        geo_value,
+        time_value,
+        value_flu_hosp_prop = value,
+      ) %>% inner_join (
+        covid_hosp_prop_data %>% select (
+          geo_value,
+          time_value,
+          value_covid_hosp_prop = value,
+        ),
+      by=c('geo_value', 'time_value')
+    ) %>% inner_join(
+        covid_case_prop_data %>% select (
+          geo_value,
+          time_value,
+          value_covid_case_prop = value,
+        ),
+      by=c('geo_value', 'time_value')
+    )
+      
+```
+
+```{r plot-data, fig.width=12, fig.height=8}
+plt = ggplot(data_tall,
+             aes(x=time_value,
+                 y=value,
+                 color=geo_value),
+    ) + geom_line (
+    ) + facet_wrap (
+      vars(signal),
+      nrow=3,
+      scales = 'free_y',
+    )
+
+plt
+```
+
+In order to improve the clarity of the plots above, we remove the four states
+with extreme hospitalization rates (don't know how to adjust the y limits
+in a `facet_wrap`, and I don't think this substantially changes the conclusions
+of the EDA.
+
+```{r plot-data-filtered, fig.width=12, fig.height=8}
+data_tall %>% filter (
+      signal == 'flu_hosp_prop',
+      abs(value) >= 0.2,
+    ) %>% group_by (
+      geo_value,
+    ) %>% summarize (
+      count = n(),
+    ) # Nevada, Wyoming, and Massachusetts - reporting errors?
+
+plt = ggplot(data_tall %>% filter (!(geo_value %in% c('nv', 'ma', 'wy', 'vi'))),
+             aes(x=time_value,
+                 y=value,
+                 color=geo_value),
+    ) + geom_line (
+    ) + facet_wrap (
+      vars(signal),
+      nrow=3,
+      scales = 'free_y',
+    )
+
+plt
+```
+
+COVID case rates and COVID hospitalization rates both obey rough trends
+dominated by the "surge" structure.  To some extent, hospitalization rates
+are a lagged version of cases.  This effect appears most exaggerated during
+the holiday season 2020.
+
+The flu hospitalization rate shows little similarity with either of the
+COVID signals, save for what appears to be an intensification of 
+hospitalizations during the holiday season 2020.  The signal appears to
+largely be noise.  (Since we only have flu hospitalization data starting
+from late-2020, none of the data follows the classical, pre-COVID
+flu season trajectory).
+
+It is honestly hard to see anything other than a baseline forecaster
+(i.e., propagate the previous week forward) doing well in this setting.
+
+```{r flu-late-2021, fig.width=12, fig.height=8}
+
+plt = data_tall %>% filter (
+      signal == 'flu_hosp_prop',
+      time_value >= '2021-10-01',
+    ) %>% ggplot (
+      aes(x=time_value,
+          y=value,
+          color=geo_value)
+    ) + geom_line (
+    )
+
+plt
+
+```
+
+### Forecasting results
+
+We trained two forecasters, using forecast dates from October 1, 2021 to
+October 31, 2021.  For each forecast date, we predict 5 days ahead to 
+28 days ahead.  Predictions are made for the seven county-level quantiles
+prescribed by the COVIDhub.  (The CDC requests predictions for 23 quantiles).
+Training was done on the rates scale; one can transform the predictions to
+the counts scale (as requested by the CDC) post hoc.
+
+Here, we plot mean WIS's, aggregated across forecast dates and locations,
+by ahead.
+```{r plot_results_wis, fig.width=12, fig.height=8, warning=FALSE, message=FALSE}
+results = readRDS('results/results.RDS')
+
+plt = results %>% group_by (
+      forecaster,
+      ahead,
+    ) %>% summarize (
+      mean_wis = mean(wis),
+    ) %>% ggplot (
+      aes(x=ahead, y=mean_wis, color=forecaster)
+    ) + geom_point (
+    ) + geom_line (
+    ) + geom_vline (
+      xintercept=c(5, 12, 19, 26),
+      linetype='dotted',
+    )
+
+plt
+```
+
+Here, we plot population-weighted mean WIS's, aggregated across forecast dates
+and locations, by ahead.
+```{r plot_results_population_weighted_wis, fig.width=12, fig.height=8, warning=FALSE, message=FALSE}
+state_pop = covidcast::state_census %>% tibble (
+    ) %>% transmute (
+      geo_value = stringr::str_to_lower(ABBR),
+      pop = POPESTIMATE2019,
+    )
+
+results = results %>% left_join (
+      state_pop,
+      by='geo_value',
+    ) %>% mutate (
+      pop_wis = wis * pop,
+      pop_ae = ae * pop,
+    )
+
+
+plt = results %>% group_by (
+      forecaster,
+      ahead,
+    ) %>% summarize (
+      mean_pop_wis = mean(pop_wis) / 1e6,
+    ) %>% ggplot (
+      aes(x=ahead, y=mean_pop_wis, color=forecaster)
+    ) + geom_point (
+    ) + geom_line (
+    ) + geom_vline (
+      xintercept=c(5, 12, 19, 26),
+      linetype='dotted',
+    )
+
+plt
+```
+
+
