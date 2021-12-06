@@ -4,12 +4,12 @@ from datetime import (
         )
 
 today = date.today()
-week = timedelta(days=7)
+max_ahead = 28
 
 today.strftime('%Y-%m-%d')
 
 last_eval_date = today - timedelta(days=1)
-last_forecast_date = last_eval_date - timedelta(days=7)
+last_forecast_date = last_eval_date - timedelta(days=max_ahead+1)
 
 output_str = f"""
 forecast_dates <- seq(as.Date('2021-10-01'),
@@ -17,7 +17,7 @@ forecast_dates <- seq(as.Date('2021-10-01'),
                       by = "day")
 last_eval_date <- '{last_eval_date.strftime('%Y-%m-%d')}'
 geo_type <- 'state'
-ahead = 5:28
+ahead = 5:{max_ahead}
 response_data_source = 'hhs'
 response_signal = 'confirmed_admissions_influenza_1d_prop_7dav'
 states_dc_pr_vi = c('al', 'ak', 'az', 'ar', 'ca', 'co', 'ct', 'dc', 'de', 'fl',
