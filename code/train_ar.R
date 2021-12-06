@@ -7,23 +7,11 @@ library(covidcast)
 library(evalcast)
 source('quantgen.R')
 
-states_dc_pr_vi = c('al', 'ak', 'az', 'ar', 'ca', 'co', 'ct', 'dc', 'de', 'fl',
-                    'ga', 'hi', 'id', 'il', 'in', 'ia', 'ks', 'ky', 'la', 'me',
-                    'md', 'ma', 'mi', 'mn', 'ms', 'mo', 'mt', 'ne', 'nv', 'nh',
-                    'nj', 'nm', 'ny', 'nc', 'nd', 'oh', 'ok', 'or', 'pa', 'ri',
-                    'sc', 'sd', 'tn', 'tx', 'ut', 'vt', 'va', 'wa', 'wv', 'wi',
-                    'wy', 'pr', 'vi')
+source('common_params.R')
 
-geo_type <- "state" 
 ntrain = 21
 lags = c(0, 7, 14)
-forecast_dates <- seq(as.Date('2021-10-01'),
-                      as.Date('2021-10-31'),
-                      by = "day")
-ahead = 5:28
 tau = c(0.025, 0.1, 0.25, 0.5, 0.75, 0.9, 0.975)
-response_data_source = 'hhs'
-response_signal = 'confirmed_admissions_influenza_1d_prop_7dav'
 debug_dir = './debug_results/'
 
 # To user with future_map, we must evaluate these globals ahead of time
