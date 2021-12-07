@@ -163,37 +163,16 @@ data_wide = flu_hosp_prop_data %>% select (
       
 ```
 
-```{r plot-data, fig.width=12, fig.height=8}
-plt = ggplot(data_tall,
-             aes(x=time_value,
-                 y=value,
-                 color=geo_value),
-    ) + geom_line (
-    ) + facet_wrap (
-      vars(signal),
-      nrow=3,
-      scales = 'free_y',
-    )
-
-plt
-```
-
-In order to improve the clarity of the plots above, we remove the four states
-with extreme hospitalization rates (don't know how to adjust the y limits
-in a `facet_wrap`, and I don't think this substantially changes the conclusions
-of the EDA.
+In the following figure, we restrict the range of the flu hospitalization rate
+to be within 0 and 0.2, to improve the clarity of the plot.  In a very few
+cases, there are abnormally large or negative values; I believe these 
+to be data reporting errors.  Please refer to the appendix.
 
 ```{r plot-data-filtered, fig.width=12, fig.height=8}
-data_tall %>% filter (
-      signal == 'flu_hosp_prop',
-      abs(value) >= 0.2,
-    ) %>% group_by (
-      geo_value,
-    ) %>% summarize (
-      count = n(),
-    ) # Nevada, Wyoming, and Massachusetts - reporting errors?
-
-plt = ggplot(data_tall %>% filter (!(geo_value %in% c('nv', 'ma', 'wy', 'vi'))),
+plt = ggplot(data_tall %>% filter (
+        ((signal == 'flu_hosp_prop') & (value <= 0.20) & (value >= 0)) | 
+          (signal != 'flu_hosp_prop'),
+      ),
              aes(x=time_value,
                  y=value,
                  color=geo_value),
@@ -238,10 +217,54 @@ plt
 
 ```
 
+Decomposing the distribution of flu hospitalization rate by state, it appears
+that most states have a distribution centered around 0.02, with a small
+standard deviation.  A few of the states have a wider spread.  
+
+Concerningly, some of the states have have all zeros.  To be fair, these states
+are also those with small population.  My bet there are still hospitalizations
+there, but that hospitals are not properly reporting flu-related
+hospitalizations.
+
+```{r histogram_by_state, fig.width=12, fig.height=16}
+plt_df = data_tall %>% filter (
+      signal == 'flu_hosp_prop',
+      time_value >= '2021-10-01',
+    )
+plt_sds = plt_df %>% group_by (
+      geo_value,
+    ) %>% summarize (
+      sd = sd(value),
+    ) %>% ungroup (
+    ) %>% mutate (
+      geo_value_sd = sprintf('%s, sd=%0.3f', geo_value, sd),
+    )
+plt_df = plt_df %>% inner_join (
+      plt_sds,
+      by=c('geo_value'),
+    )
+plt = ggplot (
+      plt_df,
+      aes(x=value)
+    ) + geom_histogram(
+    ) + facet_wrap (
+      vars(geo_value_sd),
+      ncol = 6
+    ) + theme (
+      axis.title.x = element_text(size=20),
+      axis.title.y = element_text(size=20),
+      axis.text.x = element_text(size=12),
+      axis.text.y = element_text(size=12),
+      strip.text.x = element_text(size=16),
+    )
+plt
+
+```
+
 ### Forecasting results
 
 We trained two forecasters, using forecast dates from October 1, 2021 to
-October 31, 2021.  For each forecast date, we predict 5 days ahead to 
+November 6, 2021.  For each forecast date, we predict 5 days ahead to 
 28 days ahead.  Predictions are made for the seven county-level quantiles
 prescribed by the COVIDhub.  (The CDC requests predictions for 23 quantiles).
 Training was done on the rates scale; one can transform the predictions to
@@ -304,4 +327,19 @@ plt = results %>% group_by (
 plt
 ```
 
+## Appendix
 
+```{r plot-data, fig.width=12, fig.height=8}
+plt = ggplot(data_tall,
+             aes(x=time_value,
+                 y=value,
+                 color=geo_value),
+    ) + geom_line (
+    ) + facet_wrap (
+      vars(signal),
+      nrow=3,
+      scales = 'free_y',
+    )
+
+plt
+```
