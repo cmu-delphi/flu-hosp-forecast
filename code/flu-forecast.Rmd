@@ -61,29 +61,10 @@ library(dplyr)
 library(tidyr)
 library(tibble)
 library(ggplot2)
+library(Matrix)
 
-states_dc_pr_vi = c('al', 'ak', 'az', 'ar', 'ca', 'co', 'ct', 'dc', 'de', 'fl',
-                    'ga', 'hi', 'id', 'il', 'in', 'ia', 'ks', 'ky', 'la', 'me',
-                    'md', 'ma', 'mi', 'mn', 'ms', 'mo', 'mt', 'ne', 'nv', 'nh',
-                    'nj', 'nm', 'ny', 'nc', 'nd', 'oh', 'ok', 'or', 'pa', 'ri',
-                    'sc', 'sd', 'tn', 'tx', 'ut', 'vt', 'va', 'wa', 'wv', 'wi',
-                    'wy', 'pr', 'vi')
-```
-
-```{r define-eda-parameters}
-start_day =  '2020-05-01'
-end_day =    '2021-12-01'
-geo_type = 'state'
-
-hhs_source = 'hhs'
-flu_hosp_num  = 'confirmed_admissions_influenza_1d_7dav'
-flu_hosp_prop = 'confirmed_admissions_influenza_1d_prop_7dav'
-covid_hosp_num  = 'confirmed_admissions_covid_1d_7dav'
-covid_hosp_prop = 'confirmed_admissions_covid_1d_prop_7dav'
-
-jhu_source = 'jhu-csse'
-covid_case_num  = 'confirmed_7dav_incidence_num'
-covid_case_prop = 'confirmed_7dav_incidence_prop'
+source('common_params.R')
+aheads=ahead;rm(ahead)
 ```
 
 ```{r pull-data, cache=TRUE, message=FALSE, warning=FALSE}
@@ -211,6 +192,8 @@ plt = data_tall %>% filter (
           y=value,
           color=geo_value)
     ) + geom_line (
+    ) + ggtitle (
+      "Flu hospitalization rates, forecast_date >= '2021-10-01'"
     )
 
 plt
@@ -256,6 +239,8 @@ plt = ggplot (
       axis.text.x = element_text(size=12),
       axis.text.y = element_text(size=12),
       strip.text.x = element_text(size=16),
+    ) + ggtitle (
+      "Flu hospitalization rates, forecast_date >= '2021-10-01'"
     )
 plt
 
@@ -271,30 +256,23 @@ Training was done on the rates scale; one can transform the predictions to
 the counts scale (as requested by the CDC) post hoc.
 
 Here, we plot mean WIS's, aggregated across forecast dates and locations,
-by ahead.
+by ahead.  We also separately aggregate, excluding locations that only
+observed zeros during the entirety of the forecasting task.
+
 ```{r plot_results_wis, fig.width=12, fig.height=8, warning=FALSE, message=FALSE}
 results = readRDS('results/results.RDS')
 
-plt = results %>% group_by (
-      forecaster,
-      ahead,
+states_all_zero = data_tall %>% filter (
+      signal == 'flu_hosp_prop',
+      time_value >= '2021-10-01',
+    ) %>% group_by (
+      geo_value,
     ) %>% summarize (
-      mean_wis = mean(wis),
-    ) %>% ggplot (
-      aes(x=ahead, y=mean_wis, color=forecaster)
-    ) + geom_point (
-    ) + geom_line (
-    ) + geom_vline (
-      xintercept=c(5, 12, 19, 26),
-      linetype='dotted',
+      prop_nonzero = mean(value != 0),
+    ) %>% filter (
+      #prop_nonzero <= 0.20,
+      prop_nonzero == 0,
     )
-
-plt
-```
-
-Here, we plot population-weighted mean WIS's, aggregated across forecast dates
-and locations, by ahead.
-```{r plot_results_population_weighted_wis, fig.width=12, fig.height=8, warning=FALSE, message=FALSE}
 state_pop = covidcast::state_census %>% tibble (
     ) %>% transmute (
       geo_value = stringr::str_to_lower(ABBR),
@@ -309,14 +287,37 @@ results = results %>% left_join (
       pop_ae = ae * pop,
     )
 
+cat(sprintf('States with all zeros: %s.\n',
+    paste(states_all_zero$geo_value, collapse=', ')))
 
-plt = results %>% group_by (
-      forecaster,
-      ahead,
-    ) %>% summarize (
-      mean_pop_wis = mean(pop_wis) / 1e6,
-    ) %>% ggplot (
-      aes(x=ahead, y=mean_pop_wis, color=forecaster)
+mean_results = bind_rows (
+      results %>% group_by (
+        forecaster,
+        ahead,
+      ) %>% summarize (
+        mean_wis = mean(wis),
+        mean_pop_wis = mean(pop_wis),
+      ) %>% mutate (
+        aggregation = 'all',
+      ),
+      results %>% filter (
+        !(geo_value %in% states_all_zero$geo_value),
+      ) %>% group_by (
+        forecaster,
+        ahead,
+      ) %>% summarize (
+        mean_wis = mean(wis),
+        mean_pop_wis = mean(pop_wis),
+      ) %>% mutate (
+        aggregation = 'exclude_all_zero',
+      ),
+    )
+
+plt = mean_results %>% ggplot (
+      aes(x=ahead,
+          y=mean_wis,
+          linetype = aggregation,
+          color=forecaster)
     ) + geom_point (
     ) + geom_line (
     ) + geom_vline (
@@ -325,6 +326,118 @@ plt = results %>% group_by (
     )
 
 plt
+```
+
+Here, we plot population-weighted mean WIS's, aggregated across forecast dates
+and locations, by ahead.
+```{r plot_results_population_weighted_wis, fig.width=12, fig.height=8, warning=FALSE, message=FALSE}
+plt = mean_results %>% ggplot (
+      aes(x=ahead,
+          y=mean_pop_wis,
+          linetype = aggregation,
+          color=forecaster)
+    ) + geom_point (
+    ) + geom_line (
+    ) + geom_vline (
+      xintercept=c(5, 12, 19, 26),
+      linetype='dotted',
+    )
+
+plt
+```
+
+### Diagnostics
+
+Diagnostic plots suggest that in most states (larger population states?), the
+residuals are moderately well-behaved, but pathological behavior
+(high leverage points, significant departure from the assumption of Gaussian
+errors) are visible in some states, especially those of smaller population
+(count-based model more appropriate here?)
+
+```{r forecast_qqplots, fig.width=12, fig.height=16}
+preds = readRDS('predictions/predictions.RDS')
+actuals = readRDS('actuals.RDS')
+
+evals = preds %>% inner_join(
+    actuals,
+    by = c('target_end_date', 'geo_value')
+  ) %>% mutate (
+    ae = abs(value - actual),
+    res = value-actual,
+  )
+
+plt = ggplot(evals %>% filter (ahead==12, quantile==0.5),
+             aes(sample=res)
+  ) + stat_qq_line (
+    color='red'
+  ) + stat_qq (
+    size=0.1,
+  ) + facet_wrap (
+    vars(geo_value),
+    scales='free_y',
+    ncol=6,
+  ) + ggtitle (
+    'Residual qqplot, ahead=12, tau=0.5'
+  )
+
+plt
+
+```
+
+```{r forecast_resplots, fig.width=12, fig.height=16}
+
+plt = ggplot(evals %>% filter (ahead==12, quantile==0.5),
+             aes(value, res)
+  ) + geom_point (
+    size=0.1,
+  ) + geom_hline (
+    yintercept=0,
+    color='red',
+  ) + facet_wrap (
+    vars(geo_value),
+    scales='free',
+    ncol=6,
+  ) + ggtitle (
+    'Residuals, ahead=12, tau=0.5'
+  )
+
+plt
+```
+
+
+```{r forecast_coefplots, fig.width=12, fig.height=12}
+sub_aheads = c(5, 12, 19)
+
+df_list = vector('list', length(forecast_dates))
+for (idx in 1:length(forecast_dates)) {
+  debug_results = readRDS(sprintf('./debug_results/AR_state_%s.RDS',
+                                  forecast_dates[idx]))
+  mini_df_list = vector('list', length(sub_aheads))
+  for (sidx in 1:length(sub_aheads)) {
+  mini_df_list[[sidx]] = tibble(
+      forecast_date=forecast_dates[idx],
+      coef=0:3,
+      value= debug_results$predict_params[[
+                which(aheads==sub_aheads[sidx])]]$object$beta[,4],
+      ahead=sub_aheads[sidx])
+  }
+  df_list[[idx]] = bind_rows(mini_df_list)
+}
+coefs_df = bind_rows(df_list)
+coefs_df$ahead = as.factor(coefs_df$ahead)
+
+plt = ggplot(coefs_df,
+             aes(x=coef,
+                 y=value,
+                 color=ahead)
+  ) + geom_line (
+  ) + facet_wrap (
+    vars(forecast_date)
+  ) + ggtitle (
+    'Coefficient values for predicting the median (tau=0.5)'
+  )
+plt
+
 ```
 
 ## Appendix
