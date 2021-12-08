@@ -44,14 +44,52 @@ output:
 
 **Next steps:**
 
+* Comprehensive evaluation (coverage, etc...)
 * Iterate on the autoregressive model, if necessary.
-* Understand why the AR model is better than baseline when there doesn't seem
-  to be a timewise linear trend in the data.  My hypothesis is that some
-  kind of shrinkage is happening (joint model, so the means are being
-  estimated simultaneously).  We could verify this by exploring the
-  coefficients in the fitted model objects.
 * If we trust the AR model, re-train at all 23 quantiles and do this
   evaluation exercise again.
+
+### Methods
+
+**Inputs:**
+
+* `hhs:confirmed_admissions_influenza_1d_prop_7dav`: this data describes
+  population-normalized number of flu hospitalizations in each state
+  ("flu hospitalization rate"), per day.
+  It is normalized to the incidence ratio scale (count / population * 100,000).
+* The data are smoothed by taking a **rolling seven-day average.**
+* We include all **50 US states, DC, VI, and PR**.
+* Here, we take forecast dates from **2021-10-01 to the latest available**.
+
+**Outputs:**
+
+* For each forecast date, we predict the flu hospitalization rate at 
+  **aheads=5:28**.
+* For each target date, at each of the **53 locations**, we produce a
+  distributional forecast, predicting at a set of quantiles.
+  **Ultimately, we will predict at the 23 COVIDhub quantiles, but for now
+  we are producing predictions at the smaller set of quantiles
+  `c(0.025, 0.1, 0.25, 0.5, 0.75, 0.9, 0.975)`**.
+
+**Model:**
+
+Here we re-use the notation from the pnas-forecast paper.
+
+Let $Y_{\ell, t}$ denote the 7-day trailing average of flu hospitalization
+incidence rates in location $\ell$ and at time $t$.  Separately for
+each $a = 5, \dotsc, 28$, we learn a model of the form:
+$$
+\mathrm{Quantile}_\tau(Y_{\ell, t+a} | Y_{\ell, s}, s \leq t)
+= \alpha^{a, \tau} + \sum_{j=0}^2 \beta_j^{a,\tau}Y_{\ell, t-7j}.
+$$
+For a fixed target quantile $\tau$, this uses current flu hospitalization
+rates, as well as seven- and fourteen-day lagged flu hospitalization
+rates, in order to predict the $\tau$-quantile of case rates at
+$a$ days ahead.
+
+This model is fit using quantile regression separately for each
+$\tau$ (with post hoc sorting and thresholding), using data from all
+53 "states" and the most recent 21 days of training data.
 
 ### Exploratory data analysis
 
@@ -277,7 +315,12 @@ state_pop = covidcast::state_census %>% tibble (
     ) %>% transmute (
       geo_value = stringr::str_to_lower(ABBR),
       pop = POPESTIMATE2019,
+    ) %>% mutate (
+      state_with_pop = sprintf('%s, %d', geo_value, pop),
+      state_with_pop = factor(state_with_pop,
+                      levels = state_with_pop[order(pop)])
     )
+
 
 results = results %>% left_join (
       state_pop,
@@ -348,57 +391,102 @@ plt
 
 ### Diagnostics
 
-Diagnostic plots suggest that in most states (larger population states?), the
-residuals are moderately well-behaved, but pathological behavior
-(high leverage points, significant departure from the assumption of Gaussian
-errors) are visible in some states, especially those of smaller population
-(count-based model more appropriate here?)
+Here we create three diagnostic plots for the autoregressive model: residuals
+by forecast date (recall that the models are learned per-forecast date, so
+these are indeed _the_ residual plots); residuals by location (the idea being
+that the models may be failing in different ways spatially); and coefficient
+values (to understand what the model is doing).
 
-```{r forecast_qqplots, fig.width=12, fig.height=16}
-preds = readRDS('predictions/predictions.RDS')
+We focus on estimation of the median, and only display the
+residuals/coefficients associated with the four aheads (5, 12, 19, 26) that we
+will be submitting to the CDC.  The four aheads displayed together but colored
+separately.
+
+Overall, these diagnostic plots suggest that:
+
+* a counts-based error model would be more appropriate (error variance increases
+  with $\hat y$)
+* when we split the residuals by location, it appears that we are consistently 
+  understimating smaller values and overestimating larger values.  I'm not
+  sure why this is.
+* during earlier forecast dates (early October), the model balances coefficient 
+  weight on the three lags (0, 7, 14 days).  By late October, most of the
+  weight is on the 0 day lag.  My interpretation of this is that when
+  things are relatively flat, averaging over several lags reduces variance;
+  but as rates start to rise, more focus is placed on the most recent
+  information.  (I ignore ahead=5 in this interpretation, because it's
+  in the "cheating" regime due to the fact that we are training on
+  seven-day averages).
+
+```{r ar_forecast_resplots, fig.width=12, fig.height=16}
+preds = readRDS('predictions/predictions.RDS') %>% filter (
+    forecast_date <= max(forecast_dates)
+  )
 actuals = readRDS('actuals.RDS')
+
+sub_aheads = c(5, 12, 19, 26)
 
 evals = preds %>% inner_join(
     actuals,
     by = c('target_end_date', 'geo_value')
   ) %>% mutate (
     ae = abs(value - actual),
-    res = value-actual,
+    res = actual-value,
   )
 
-plt = ggplot(evals %>% filter (ahead==12, quantile==0.5),
-             aes(sample=res)
-  ) + stat_qq_line (
-    color='red'
-  ) + stat_qq (
-    size=0.1,
+plt = ggplot(evals %>% filter (
+          ahead %in% sub_aheads,
+          quantile==0.5,
+          forecaster == 'AR',
+        ) %>% mutate (
+          ahead = as.factor(ahead)
+        ),
+             aes(value, res, color=ahead)
+  ) + geom_hline (
+    yintercept=0,
+  ) + geom_point (
+    size=0.5,
   ) + facet_wrap (
-    vars(geo_value),
-    scales='free_y',
-    ncol=6,
+    vars(forecast_date),
+    scales='free',
+    #ncol=6,
+  ) + xlab (
+    'y_hat'
+  ) + ylab( 
+    'y - y_hat'
   ) + ggtitle (
-    'Residual qqplot, ahead=12, tau=0.5'
+    'AR Residuals, tau=0.5'
   )
 
 plt
 
-```
+evals = evals %>% inner_join (
+    state_pop,
+    by='geo_value',
+  ) 
 
-```{r forecast_resplots, fig.width=12, fig.height=16}
-
-plt = ggplot(evals %>% filter (ahead==12, quantile==0.5),
-             aes(value, res)
-  ) + geom_point (
-    size=0.1,
+plt = ggplot(evals %>% filter (
+          ahead %in% sub_aheads,
+          quantile==0.5,
+          forecaster == 'AR',
+        ) %>% mutate (
+          ahead = as.factor(ahead)
+        ),
+             aes(value, res, color=ahead)
   ) + geom_hline (
     yintercept=0,
-    color='red',
+  ) + geom_point (
+    size=0.5,
   ) + facet_wrap (
-    vars(geo_value),
+    vars(state_with_pop),
     scales='free',
     ncol=6,
+  ) + xlab (
+    'y_hat'
+  ) + ylab( 
+    'y - y_hat'
   ) + ggtitle (
-    'Residuals, ahead=12, tau=0.5'
+    'AR Residuals, tau=0.5'
   )
 
 plt
@@ -406,8 +494,6 @@ plt
 
 
 ```{r forecast_coefplots, fig.width=12, fig.height=12}
-sub_aheads = c(5, 12, 19)
-
 df_list = vector('list', length(forecast_dates))
 for (idx in 1:length(forecast_dates)) {
   debug_results = readRDS(sprintf('./debug_results/AR_state_%s.RDS',
