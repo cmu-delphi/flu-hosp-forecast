@@ -219,19 +219,23 @@ flu season trajectory).
 
 It is honestly hard to see anything other than a baseline forecaster
 (i.e., propagate the previous week forward) doing well in this setting.
+Here we place vertical dashedlines at the first and final forecast dates.
 
 ```{r flu-late-2021, fig.width=12, fig.height=8}
 
 plt = data_tall %>% filter (
       signal == 'flu_hosp_prop',
-      time_value >= '2021-10-01',
+      time_value >= as.Date('2021-10-01') - 21,
     ) %>% ggplot (
       aes(x=time_value,
           y=value,
           color=geo_value)
     ) + geom_line (
+    ) + geom_vline (
+      xintercept=c(min(forecast_dates), max(forecast_dates)),
+      linetype='dashed',
     ) + ggtitle (
-      "Flu hospitalization rates, forecast_date >= '2021-10-01'"
+      "Flu hospitalization rates, forecast_date >= '2021-10-01' - 21 days"
     )
 
 plt
@@ -492,6 +496,9 @@ plt = ggplot(evals %>% filter (
 plt
 ```
 
+In the following plot, an x-value of 0 corresponds to the intercept,
+and the values 1 through 3 correspond to the 0, 7, and 14 day 
+lags, respectively.
 
 ```{r forecast_coefplots, fig.width=12, fig.height=12}
 df_list = vector('list', length(forecast_dates))
