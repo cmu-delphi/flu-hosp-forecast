@@ -103,6 +103,16 @@ library(Matrix)
 
 source('common_params.R')
 aheads=ahead;rm(ahead)
+hhs_source = 'hhs'
+flu_hosp_num  = 'confirmed_admissions_influenza_1d_7dav'
+flu_hosp_prop = 'confirmed_admissions_influenza_1d_prop_7dav'
+covid_hosp_num  = 'confirmed_admissions_covid_1d_7dav'
+covid_hosp_prop = 'confirmed_admissions_covid_1d_prop_7dav'
+jhu_source = 'jhu-csse'
+covid_case_num  = 'confirmed_7dav_incidence_num'
+covid_case_prop = 'confirmed_7dav_incidence_prop'
+start_day =  '2020-05-01'
+end_day =    last_eval_date
 ```
 
 ```{r pull-data, cache=TRUE, message=FALSE, warning=FALSE}
@@ -287,7 +297,6 @@ plt = ggplot (
 plt
 
 ```
-
 ### Forecasting results
 
 We trained two forecasters, using forecast dates from October 1, 2021 to
@@ -302,7 +311,7 @@ by ahead.  We also separately aggregate, excluding locations that only
 observed zeros during the entirety of the forecasting task.
 
 ```{r plot_results_wis, fig.width=12, fig.height=8, warning=FALSE, message=FALSE}
-results = readRDS('results/results.RDS')
+results = readRDS('results/results_23.RDS')
 
 states_all_zero = data_tall %>% filter (
       signal == 'flu_hosp_prop',
@@ -423,7 +432,7 @@ Overall, these diagnostic plots suggest that:
   seven-day averages).
 
 ```{r ar_forecast_resplots, fig.width=12, fig.height=16}
-preds = readRDS('predictions/predictions.RDS') %>% filter (
+preds = readRDS('predictions/predictions_23.RDS') %>% filter (
     forecast_date <= max(forecast_dates)
   )
 actuals = readRDS('actuals.RDS')
@@ -441,7 +450,7 @@ evals = preds %>% inner_join(
 plt = ggplot(evals %>% filter (
           ahead %in% sub_aheads,
           quantile==0.5,
-          forecaster == 'AR',
+          forecaster == 'AR3',
         ) %>% mutate (
           ahead = as.factor(ahead)
         ),
@@ -472,7 +481,7 @@ evals = evals %>% inner_join (
 plt = ggplot(evals %>% filter (
           ahead %in% sub_aheads,
           quantile==0.5,
-          forecaster == 'AR',
+          forecaster == 'AR3',
         ) %>% mutate (
           ahead = as.factor(ahead)
         ),
@@ -494,6 +503,32 @@ plt = ggplot(evals %>% filter (
   )
 
 plt
+
+plt = ggplot(evals %>% filter (
+          ahead %in% sub_aheads,
+          quantile==0.5,
+          forecaster == 'AR3_logtrans_23',
+        ) %>% mutate (
+          ahead = as.factor(ahead)
+        ),
+             aes(value, res, color=ahead)
+  ) + geom_hline (
+    yintercept=0,
+  ) + geom_point (
+    size=0.5,
+  ) + facet_wrap (
+    vars(state_with_pop),
+    scales='free',
+    ncol=6,
+  ) + xlab (
+    'y_hat'
+  ) + ylab( 
+    'y - y_hat'
+  ) + ggtitle (
+    'AR (log transformed) Residuals, tau=0.5'
+  )
+
+plt
 ```
 
 In the following plot, an x-value of 0 corresponds to the intercept,
@@ -503,7 +538,7 @@ lags, respectively.
 ```{r forecast_coefplots, fig.width=12, fig.height=12}
 df_list = vector('list', length(forecast_dates))
 for (idx in 1:length(forecast_dates)) {
-  debug_results = readRDS(sprintf('./debug_results/AR_state_%s.RDS',
+  debug_results = readRDS(sprintf('./debug_results/AR3_state_%s.RDS',
                                   forecast_dates[idx]))
   mini_df_list = vector('list', length(sub_aheads))
   for (sidx in 1:length(sub_aheads)) {
