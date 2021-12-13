@@ -1,8 +1,3 @@
-library(furrr)
-future::plan(multisession)
-
-library(progressr)
-
 library(dplyr)
 library(tibble)
 library(covidcast)
