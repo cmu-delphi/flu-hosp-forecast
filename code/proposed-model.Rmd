@@ -11,7 +11,7 @@ output:
 **Background:**
 
 * Flu (and COVID) hospitalization collected centrally by the HHS starting
-  this year (2021).
+  in 2021.
 * The CDC is asking for forecasts of flu hospitalization incidence at the 
   weekly level.  Forecasts are due every Monday evening, for the following
   four ending Epiweeks.  This means that if Monday is the forecast date, 
@@ -21,19 +21,41 @@ output:
   as well as national-level forecasts comprised of those 53 state-level
   entities.  These distributional forecasts are to consist predictions at
   23 quantiles.
+* Here, we consider a [baseline ("flat-line") forecaster](https://cmu-delphi.github.io/covidcast/evalcastR/reference/baseline_forecaster.html)
+  based on the [COVID Forecast Hub](https://github.com/reichlab/covid19-forecast-hub)
+  baseline, an autoregressive model based solely on HHS data, and
+  autoregressive models that augment the HHS data with
+  auxiliary information from Change Healthcare.
+* **We recommend that at "one week" ahead (ahead=5), we use the
+  "flat-line" forecaster; but at two or more weeks ahead, we use
+  an autoregressive model with Change Healthcare features.**
 
 
 ### Methods
 
 **Inputs:**
 
-* `hhs:confirmed_admissions_influenza_1d_prop_7dav`: this data describes
+* The principal autoregressive feature is
+  `hhs:confirmed_admissions_influenza_1d_prop_7dav`.  This data describes
   population-normalized number of flu hospitalizations in each state
   ("flu hospitalization rate"), per day.
-  It is normalized to the incidence ratio scale (count / population * 100,000).
-* The data are smoothed by taking a **rolling seven-day average.**
+  It is normalized to the incidence ratio scale (count / population * 100,000)
+  and smoothed by taking a rolling seven-day average.
+  [Documentation in COVIDcast](https://cmu-delphi.github.io/delphi-epidata/api/covidcast-signals/hhs.html).
+* We also include
+  `chng:smoothed_adj_outpatient_flu`: this data uses Change Healthcare 
+  claims to estimate the percentage of outpatient doctor visits with
+  confirmed influenza (day-of-week effects removed).
+  [Documentation in COVIDcast](https://cmu-delphi.github.io/delphi-epidata/api/covidcast-signals/chng.html).
 * We include all **50 US states, DC, VI, and PR**.
-* Here, we take forecast dates from **2021-10-01 to the latest available**.
+* Here, we take forecast dates from **2021-10-01 to the latest
+  available**.  This notebook uses data as of December 30, 2021.
+* **Important note:** the earliest issue available for the Change Healthcare 
+  data is December 6, 2021, so this is trained with "finalized" data 
+  as-of the evaluation date on which the models were trained.  The HHS features
+  are taken with "vintage" data as-of each forecasting date.  The use of
+  "finalized" Change Healthcare data may lead to optimistic performance.
+
 
 **Outputs:**
 
@@ -44,7 +66,8 @@ output:
 
 **Model:**
 
-Here we re-use the notation from the pnas-forecast paper.
+Here we use the same notation as in the
+[PNAS forecasing evaluation paper](https://www.pnas.org/content/118/51/e2111453118).
 
 Let $Y_{\ell, t}$ denote the 7-day trailing average of flu hospitalization
 incidence rates in location $\ell$ and at time $t$.  Further,
@@ -103,6 +126,17 @@ Based on the following results, we recommend using the "AR3+CHNG3" model,
 which uses three lags of the response and the Change flu indicator.  Adding
 the lagged indicator provides modest improvements in WIS, and noticeable 
 improvements in coverage (although all models are severely undercovering).
+
+Recall that the Change Healthcare data being used here is "finalized", and
+hence performance may be over-optimistic.  However, the pure autoregressive
+model still exhibits noticeable improvement over the flat-line baseline model.
+
+Finally, observe in the latter figures that especially at one-week ahead
+(ahead=5), switching from the flat-line baseline to an autoregressive model
+negatively impacts states with smaller population, while having neutral (mean WIS)
+or positive (achieved 80% coverage) on states with larger population.  The
+mechanics of how the forecasts change in states of varying population should
+be more closely studied.
 
 ```{r plot_results_wis, fig.width=12, fig.height=12, warning=FALSE, message=FALSE}
 
@@ -174,7 +208,7 @@ plt_mean_wis = mean_results %>% ggplot (
     ) + geom_vline (
       xintercept=c(5, 12, 19, 26),
       linetype='dotted',
-    ) + xlab (
+    ) + ylab (
       'Mean WIS'
     ) + theme(
       legend.position="bottom"
@@ -191,7 +225,7 @@ plt_mean_pop_wis = mean_results %>% ggplot (
     ) + geom_vline (
       xintercept=c(5, 12, 19, 26),
       linetype='dotted',
-    ) + xlab (
+    ) + ylab (
       'Mean WIS (population-weighted)'
     ) + theme(
       legend.position="bottom"
@@ -208,7 +242,7 @@ plt_relative_mean = relative_mean %>% ggplot (
     ) + geom_vline (
       xintercept=c(5, 12, 19, 26),
       linetype='dotted',
-    ) + xlab (
+    ) + ylab (
       'Mean WIS (relative to mean WIS of Baseline)'
     ) + theme(
       legend.position="bottom"
@@ -228,7 +262,7 @@ plt_cov80 = mean_results %>% ggplot (
     ) + geom_hline (
       yintercept=0.8,
       linetype='dotted',
-    ) + xlab (
+    ) + ylab (
       'Prop. 80% intervals that covered truth'
     ) + theme(
       legend.position="bottom"
@@ -242,9 +276,7 @@ gridExtra::grid.arrange(plt_mean_wis,
 
 ```
 
-
-```{r plot_results_wis_diff, fig.width=12, fig.height=12, warning=FALSE, message=FALSE}
-
+```{r plot_joined_results_wis_diff, fig.width=12, fig.height=12, warning=FALSE, message=FALSE}
 results_diff = results %>% filter (
       ahead %in% c(5, 12, 19, 26),
       forecaster %in% c('Baseline', 'AR3+CHNG3'),
@@ -260,19 +292,49 @@ results_diff = results %>% filter (
       state_pop,
       by='geo_value',
     )
+joined_results_diff = inner_join (
+      results_diff %>% filter (
+        forecaster == 'Baseline',
+      ) %>% select (
+        -forecaster,
+        -state_with_pop,
+      ),
+      results_diff %>% filter (
+        forecaster == 'AR3+CHNG3',
+      ) %>% select (
+        -forecaster,
+        -state_with_pop,
+        -pop,
+      ),
+      by=c('geo_value', 'ahead'),
+      suffix=c('_Baseline', '_AC3')
+    ) %>% mutate (
+      improved_mean_wis = mean_wis_AC3 <= mean_wis_Baseline,
+      improved_mean_cov80 = mean_cov80_AC3 >= mean_cov80_Baseline,
+    )
 
-plt = ggplot(results_diff,
+plt = ggplot(joined_results_diff,
              aes(x=pop,
-                 y=mean_wis,
-                 color=forecaster),
-    ) + geom_point (
+                 y=mean_wis_Baseline,
+                 xend=pop,
+                 yend=mean_wis_AC3,
+                 color=improved_mean_wis),
+    ) + geom_segment(
+      arrow=arrow(length=unit(0.1, 'cm')),
     ) + scale_color_manual (
       values = c(1, 4),
+    ) + scale_color_manual(
+      values=c('red', 'darkgreen'),
+      name='AR3+CHNG3 improves over Baseline',
     ) + facet_wrap (
       vars(ahead),
       nrow=2
     ) + xlab (
+      'Population'
+    ) + ylab ( 
       'Mean WIS'
+    ) + ggtitle (
+      'Change in Mean WIS, from Baseline to AR3+CHNG3'
     ) + scale_x_log10 (
     ) + theme (
       legend.position='bottom',
@@ -280,21 +342,29 @@ plt = ggplot(results_diff,
 
 plt
 
-plt = ggplot(results_diff,
+
+plt = ggplot(joined_results_diff,
              aes(x=pop,
-                 y=mean_cov80,
-                 color=forecaster),
-    ) + geom_point (
+                 y=mean_cov80_Baseline,
+                 xend=pop,
+                 yend=mean_cov80_AC3,
+                 color=improved_mean_cov80),
+    ) + geom_segment(
+      arrow=arrow(length=unit(0.1, 'cm')),
     ) + scale_color_manual (
       values = c(1, 4),
+    ) + scale_color_manual(
+      values=c('red', 'darkgreen'),
+      name='AR3+CHNG3 improves over Baseline',
     ) + facet_wrap (
       vars(ahead),
       nrow=2
-    ) + geom_hline (
-      yintercept=0.8,
-      linetype='dotted',
     ) + xlab (
+      'Population'
+    ) + ylab (
       'Prop. 80% intervals that covered truth'
+    ) + ggtitle (
+      'Change in 80% coverage, from Baseline to AR3+CHNG3'
     ) + scale_x_log10 (
     ) + theme (
       legend.position='bottom',
