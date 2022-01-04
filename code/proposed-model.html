@@ -465,7 +465,7 @@ pre code {
 <li>We also include <code>chng:smoothed_adj_outpatient_flu</code>: this data uses Change Healthcare claims to estimate the percentage of outpatient doctor visits with confirmed influenza (day-of-week effects removed). <a href="https://cmu-delphi.github.io/delphi-epidata/api/covidcast-signals/chng.html">Documentation in COVIDcast</a>.</li>
 <li>We include all <strong>50 US states, DC, VI, and PR</strong>.</li>
 <li>Here, we take forecast dates from <strong>2021-10-01 to the latest available</strong>. This notebook uses data as of December 30, 2021.</li>
-<li><strong>Important note:</strong> the earliest issue available for the Change Healthcare data is December 6, 2021, so this is trained with “finalized” data as-of the evaluation date on which the models were trained. The HHS features are taken with “vintage” data as-of each forecasting date. The use of “finalized” Change Healthcare data may lead to optimistic performance.</li>
+<li><strong>Important note:</strong> the earliest issue available for the Change Healthcare data is December 6, 2021, so this is trained with “finalized” data as-of the evaluation date on which the models were trained. The HHS features are taken with “vintage” data as-of each forecasting date. The use of “finalized” Change Healthcare data may lead to optimistic performance. We can switch to “vintage” data once backissues are restored to COVIDcast (or after a substantial amount of time has passed, after which we can ignore forecasting dates before December 6th).</li>
 </ul>
 <p><strong>Outputs:</strong></p>
 <ul>

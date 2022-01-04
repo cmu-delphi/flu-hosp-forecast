@@ -55,6 +55,9 @@ output:
   as-of the evaluation date on which the models were trained.  The HHS features
   are taken with "vintage" data as-of each forecasting date.  The use of
   "finalized" Change Healthcare data may lead to optimistic performance.
+  We can switch to "vintage" data once backissues are restored to 
+  COVIDcast (or after a substantial amount of time has passed, after 
+  which we can ignore forecasting dates before December 6th).
 
 
 **Outputs:**
