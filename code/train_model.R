@@ -20,11 +20,12 @@ states_dc_pr_vi = c('al', 'ak', 'az', 'ar', 'ca', 'co', 'ct', 'dc', 'de', 'fl',
                     'nj', 'nm', 'ny', 'nc', 'nd', 'oh', 'ok', 'or', 'pa', 'ri',
                     'sc', 'sd', 'tn', 'tx', 'ut', 'vt', 'va', 'wa', 'wv', 'wi',
                     'wy', 'pr', 'vi')
-forecast_dates = Sys.Date()
+forecast_dates = lubridate::today() 
+
 if (strftime(forecast_dates, '%w') != '1') {
   warning('Forecaster being run on a day that is not a Monday.',
           'The forecaster assumes that it is being run on Monday',
-          'in which aheads are predicted'.)
+          'in which aheads are predicted.')
 }
 
 make_start_day_ar = function(ahead, ntrain, lags) {
@@ -39,38 +40,28 @@ start_day_ar = make_start_day_ar(ahead, ntrain, lags)
 ###############################################################################
 # SETTINGS FOR DIFFERENT MODELS                                               #
 ###############################################################################
-idx = 3 # Ultimately we only use model 3
-as_of_fd = function(x) {x}
-as_of_td = function(x) { lubridate::today() }
+idx = 1 
 signals_df = tribble(
-  ~data_source,         ~signal,          ~name,        ~lags,
-        ~as_of,
-  response_data_source, response_signal,  'AR3',        list(lags),
-        list(as_of_fd),
-  'chng','smoothed_adj_outpatient_flu',   'AR3+CHNG1',  list(lags, c(0)),
-        list(as_of_fd, as_of_td),
-  'chng','smoothed_adj_outpatient_flu',   'AR3+CHNG3',  list(lags, lags),
-        list(as_of_fd, as_of_td),
+  ~data_source,         ~signal,        ~lags,            ~name,
+  'chng','smoothed_adj_outpatient_flu', list(lags, lags), 'CMU-TimeSeries',
 )
 
 ###############################################################################
 # LEARN THE QAR MODEL AND SAVE OUTPUT                                         #
 ###############################################################################
-# TODO:
-forecaster_name = sprintf('%s%s_%d', signals_df$name[idx], tt, length(tau))
+forecaster_name = signals_df$name[idx]
+
 signals_ar = tibble::tibble(
                       data_source = unique(c(response_data_source,
-                                             #TODO:
                                              signals_df$data_source[idx])),
                       signal = unique(c(response_signal,
-                                        #TODO:
                                         signals_df$signal[idx])),
                       start_day = list(start_day_ar),
                       geo_values=list(states_dc_pr_vi),
-                      #TODO:
-                      as_of=signals_df$as_of[[idx]],
                       geo_type=geo_type)
-preds <- get_predictions(quantgen_forecaster,
+
+t0 = Sys.time()
+preds_state <- get_predictions(quantgen_forecaster,
                       forecaster_name,
                       signals_ar,
                       forecast_dates,
@@ -82,14 +73,37 @@ preds <- get_predictions(quantgen_forecaster,
                           geo_type=geo_type,
                           tau=tau,
                           n=ntrain,
-                          lags=signals_df$lags[[idx]], # TODO:
+                          lags=signals_df$lags[[idx]], 
                           lambda=0,
                           nonneg=TRUE,
                           sort=TRUE,
-                          lp_solver='gurobi', # TODO: Change to GLPK
+                          lp_solver='glpk' # Docker doesn't support Gurobi
                           )
                       )
 t1 = Sys.time()
 print(t1-t0)
-saveRDS(preds, sprintf('predictions/preds_%s.RDS', forecaster_name))
+
+state_pop = readr::read_csv('state_pop.csv') %>% rename (
+      geo_value=state_id,
+    ) %>% select (
+      -state_name,
+    )
+INCIDENCE_RATE = 100000
+
+preds_state$quantile = signif(preds_state$quantile, 4) # Eliminate rounding issues
+
+# Transform to weekly incidence counts (not prop)
+preds_state_processed = preds_state %>% inner_join (
+      state_pop,
+      by='geo_value',
+    ) %>% transmute (
+      forecast_date = forecast_date,
+      target = sprintf('%d wk ahead inc flu hosp',
+                       (ahead-5)/7+1),
+      target_end_date = target_end_date,
+      location=state_code,
+      type='quantile',
+      quantile=quantile,
+      value=value*pop/INCIDENCE_RATE*7,
+    )
 
