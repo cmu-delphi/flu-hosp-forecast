@@ -107,7 +107,33 @@ preds_state_processed = preds_state %>% inner_join (
       value=value*pop/INCIDENCE_RATE*7,
     )
 
-readr::write_csv(preds_state_processed,
+# US-level forecasts
+preds_us_unsorted = preds_state_processed %>% group_by (
+      forecast_date,
+      target,
+      target_end_date,
+      type,
+      quantile,
+    ) %>% summarize (
+      location='us',
+      value=sum(value),
+    ) %>% ungroup
+preds_us_list = preds_us_unsorted %>% group_split (
+      forecast_date,
+      target,
+      target_end_date,
+      type,
+    )
+for (idx in 1:length(preds_us_list)) {
+  preds_us_list[[idx]]$quantile = sort(preds_us_list[[idx]]$quantile)
+  preds_us_list[[idx]]$value = sort(preds_us_list[[idx]]$value)
+}
+preds_us = bind_rows(preds_us_list)
+
+preds_full = bind_rows(preds_state_processed, preds_us)
+
+
+readr::write_csv(preds_full,
                  sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries.csv', forecast_dates),
                  # quote='all' is important to make sure the location column is quoted.
                  quote='all')
