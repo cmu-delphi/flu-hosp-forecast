@@ -107,3 +107,8 @@ preds_state_processed = preds_state %>% inner_join (
       value=value*pop/INCIDENCE_RATE*7,
     )
 
+readr::write_csv(preds_state_processed,
+                 sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries.csv', forecast_dates),
+                 # quote='all' is important to make sure the location column is quoted.
+                 quote='all')
+
