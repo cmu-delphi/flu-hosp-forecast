@@ -25,5 +25,5 @@ methods_long: "A basic quantile autoregression fit using lagged values of\
   \ the District of Columbia, Puerto Rico, and the Virgin Islands.  Each\
   \ of the 23 quantiles is learned using a separate quantile regression, with\
   \ nonnegativity and sorting constraints applied post hoc.  All signals are\
-  \ available as indicators as indicators through Delphi Epidata\
+  \ available as indicators through Delphi Epidata\
   \ (https://cmu-delphi.github.io/delphi-epidata/)."
