@@ -5,47 +5,46 @@ library(covidcast)
 
 actuals = readRDS('actuals.RDS')
 
-tau = c(0.025, 0.1, 0.25, 0.5, 0.75, 0.9, 0.975)
-
 # Read baseline
 baseline_preds = readRDS('predictions/preds_Baseline.RDS')
 
-# Subset baseline quantiles (properly!)
-baseline_preds_subset = baseline_preds %>% filter (
-    as.character(quantile*1000) %in% as.character(tau*1000),
-  )
+preds_files = list.files('predictions/')
 
-# Sanity check
+preds_list = vector('list', length(preds_files))
 
-baseline_preds_subset %>% summarize (
-    p_na = mean(is.na(value)),
-    count = n(),
-  )
+for (idx in 1:length(preds_list)) {
+  fi = preds_files[idx]
+  preds = readRDS(sprintf('predictions/%s', fi))
+  preds %>% summarize (
+      p_na = mean(is.na(value)),
+      count = n(),
+    )
+  preds %>% filter (
+      is.na(value),
+    ) 
+  preds %>% group_by (
+      quantile,
+    ) %>% summarize (
+      count = n(),
+    )
+  preds_list[[idx]] = preds
+}
 
-baseline_preds_subset %>% filter (
-    is.na(value),
-  ) 
 
-baseline_preds_subset %>% group_by (
-    quantile,
-  ) %>% summarize (
-    count = n(),
-  )
-
-# Ingest AR predictions
-
-ar_preds = readRDS('predictions/preds_AR.RDS')
-
-ar_preds %>% summarize (
-    p_na = mean(is.na(value)),
-    count = n(),
-  )
-
-preds = bind_rows(baseline_preds_subset, ar_preds)
+preds = bind_rows(preds_list)
 
 preds %>% summarize (p_na = mean(is.na(value)))
 
 preds %>% group_by (
+        forecaster,
+      ) %>% summarize (
+        count = n(),
+        n_preds = n() / 7,
+      )
+
+preds %>% filter (
+        !is.na(quantile),
+      ) %>% group_by (
         forecaster,
       ) %>% summarize (
         count = n(),
@@ -64,11 +63,32 @@ preds %>% group_by (
         quantile,
       ) %>% summarize (
         count = n(),
+      ) %>% print (
+        n = 24
       )
 
 saveRDS(preds, 'predictions/predictions.RDS')
 
 preds = readRDS('predictions/predictions.RDS')
+
+# Only using 23 quantile predictions from here forth
+
+preds %>% group_by (
+        forecaster,
+    ) %>% summarize (
+        count = n(),
+    )
+
+preds = preds %>% filter (
+        (forecaster == 'Baseline')|(stringr::str_ends(forecaster, '_23')),
+    )
+
+preds %>% group_by (
+        forecaster,
+    ) %>% summarize (
+        count = n(),
+    )
+
 
 preds = preds %>% mutate (
     target_end_date = forecast_date + ahead,
@@ -98,10 +118,13 @@ sc_keys <- results %>% group_keys()
 
 results <- results %>% 
   group_split() %>% 
-  lapply(evalcast:::erm, 
-         list(wis=weighted_interval_score, ae = absolute_error)) %>%
+  parallel::mclapply(evalcast:::erm, 
+         list(wis=weighted_interval_score,
+              cov80 = interval_coverage(0.8),
+              ae = absolute_error),
+         mc.cores=parallel::detectCores()) %>%
   bind_rows()
 
 results = bind_cols(sc_keys, results)
 
-saveRDS(results, 'results/results.RDS')
+saveRDS(results, 'results/results_23.RDS')

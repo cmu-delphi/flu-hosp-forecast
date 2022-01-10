@@ -23,6 +23,7 @@ signals_baseline = tibble::tibble(
                       signal = response_signal,
                       start_day = list(start_day_baseline),
                       geo_values=list(states_dc_pr_vi),
+                      as_of = list(function(x) x),
                       geo_type='state')
 
 #offline_signal_dir = sprintf('./data/%s_as_of/', train_type)
