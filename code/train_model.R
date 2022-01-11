@@ -115,7 +115,7 @@ preds_us_unsorted = preds_state_processed %>% group_by (
       type,
       quantile,
     ) %>% summarize (
-      location='us',
+      location='US',
       value=sum(value),
     ) %>% ungroup
 preds_us_list = preds_us_unsorted %>% group_split (
@@ -130,11 +130,11 @@ for (idx in 1:length(preds_us_list)) {
 }
 preds_us = bind_rows(preds_us_list)
 
-preds_full = bind_rows(preds_state_processed, preds_us)
-
+preds_full = bind_rows(preds_state_processed, preds_us) %>% arrange(
+      location,
+    )
 
 readr::write_csv(preds_full,
                  sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries.csv', forecast_dates),
                  # quote='all' is important to make sure the location column is quoted.
                  quote='all')
-
