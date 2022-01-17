@@ -97,6 +97,12 @@ preds_state_processed = preds_state %>% inner_join (
       state_pop,
       by='geo_value',
     ) %>% transmute (
+      geo_value = geo_value,
+      ahead = ahead,
+      forecaster = "flu-model",
+      data_source = "hhs",
+      signal = "confirmed_admissions_influenza_1d_7dav",
+      incidence_period = "day",
       forecast_date = forecast_date,
       target = sprintf('%d wk ahead inc flu hosp',
                        (ahead-5)/7+1),
@@ -133,6 +139,14 @@ preds_us = bind_rows(preds_us_list)
 preds_full = bind_rows(preds_state_processed, preds_us) %>% arrange(
       location,
     )
+
+readr::write_csv(preds_full,
+                 sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries-prediction-cards.csv', forecast_dates),
+                 # quote='all' is important to make sure the location column is quoted.
+                 quote='all')
+
+drops <- c("incidence_period", "geo_value", "ahead", "forecaster", "data_source", "signal")
+preds_full <- preds_full[, !(names(preds_full) %in% drops)]
 
 readr::write_csv(preds_full,
                  sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries.csv', forecast_dates),
