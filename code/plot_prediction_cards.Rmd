@@ -1,11 +1,8 @@
 ---
-title: "Antelope Trajectory Plots"
-author: "Delphi State Hospitalizations, Forecast on:"
+title: "Flu Forecasts"
+author: "Team Flu"
 date: "`r format(Sys.time(), '%B %d, %Y')`"
 output: html_document
-params:
-  data_path: "hosp-states/predictions_for_2022-01-10.RDS"
-  forecaster: "antelope"
 ---
 
 ```{r setup, include=FALSE, echo=FALSE}
@@ -14,127 +11,40 @@ library(zookeeper)
 library(lubridate)
 library(tidyverse)
 library(readr)
+library(aws.s3)
+library(covidcast)
+library(readr)
+library(pipeR)
 
-
-output_dir <- here::here()
-state_output_subdir <- here::here("hosp-states")
-forecast_date <- lubridate::ymd("2022-01-17")
-today  <- lubridate::ymd(Sys.Date())
-aheads  <- 0:28
-qa_lookback <- 60 # how far back do we show actual data on the QA report?
-forecaster_details  <- list(
-  antelope = list(
-    signals = dplyr::tibble( # state death forecaster
-      data_source = c("hhs"),
-      signal = c("confirmed_admissions_influenza_1d_7dav"),
-      start_day = lubridate::ymd("2021-01-01"),
-      geo_type = "state"
-    ),
-    ## The corresponding QC markdown file
-    qc_markdown = "antelope.Rmd"
-  )
-)
-
-state_corrections_md <- "state-corrections.Rmd"
-state_forecaster_name  <- "antelope"
-
-state_forecaster_signals  <- forecaster_details[[state_forecaster_name]][["signals"]]
-if (is.null(state_forecaster_signals)) {
-  stop("Forecaster details misconfigured! Please fix and rerun")
-}
-
-state_corrections_params <- zookeeper::default_state_params(
-  # many other options, see the function documentation
-  data_source = state_forecaster_signals$data_source,
-  signal = state_forecaster_signals$signal,
-  geo_type = state_forecaster_signals$geo_type)
-
-state_corrector <- zookeeper::make_state_corrector(params = state_corrections_params)
-state_forecaster_args <- list(
-  ahead = aheads,
-  lags = c(0,7,14),
-  tau = evalcast::covidhub_probs(), # 23 quantiles
-  lambda = 0, # no regularization or CV
-  lp_solver = "gurobi", # can remove if no license
-  noncross = TRUE, # takes a bit longer, but not much
-  featurize = animalia::make_7dav_featurizer(), # has no arguments
-  verbose = TRUE,
-  signals_to_normalize = c(TRUE, TRUE),
-  save_wide_data = here::here(state_output_subdir),
-  save_trained_models = here::here(state_output_subdir)
-)
-corrections_lookback <- 365
-
-antelope <- readr::read_csv(here::here("code", "data-forecasts", "CMU-TimeSeries", sprintf("%s-CMU-TimeSeries-prediction-cards.csv", forecast_date)))
-antelope$signal <- "confirmed_admissions_influenza_1d_7dav"
-antelope <- antelope %>% mutate(value = value / 7)
+predictions_file <- here::here("code", "data-forecasts", "CMU-TimeSeries", sprintf("%s-CMU-TimeSeries-prediction-cards.csv", Sys.Date()))
+flu_forecasts <- read_csv(predictions_file) %>%
+    mutate(value = value / 7)
 ```
 
 ## Trajectory plots
 
 * Fan displays 50/80/95% confidence intervals
-* Black line (with dots) is reported deaths
-* Blue line (without dots) is the "corrected" deaths
+* Black line is `confirmed_admissions_influenza_1d_7dav`.
 
-
-```{r, fig.height = 80, fig.width = 30, dev="CairoSVG", echo=FALSE}
-# Grab corrected data
-corrected <- suppressMessages(
-  covidcast::covidcast_signal(
-    state_forecaster_signals$data_source[1], 
-    state_forecaster_signals$signal[1],
-    start_day = ymd(today) - days(x = corrections_lookback), 
-    end_day = forecast_date,
-    geo_type = "state")) %>% 
-  state_corrector()
-
-corrected <- corrected[[1]] 
-
+```{r, fig.height = 50, fig.width = 15, dev="CairoSVG", echo=FALSE}
 # setup the plot and join corrections to the truth
-pd <- evalcast:::setup_plot_trajectory(
-  antelope, geo_type = "state",
-  start_day = lubridate::ymd(today) - lubridate::days(x = corrections_lookback),
-  end_day = forecast_date,)
+plot_trajectory(flu_forecasts, "state", start_day = "2021-11-15", ncol = 5)
+```
 
-pd$truth_df <- left_join(
-  pd$truth_df, corrected, 
-  by = c("geo_value" = "geo_value", "target_end_date" = "time_value")) %>%
-  filter(target_end_date >= ymd(today) - days(x = qa_lookback))
-
-g <- ggplot(pd$truth_df, mapping = aes(x = target_end_date))
-
-# build the fan
-g <- g + geom_ribbon(
-  data = pd$quantiles_df,
-  mapping = aes(ymin = lower, ymax = upper, fill = interval)) +
-  scale_fill_brewer(palette = "Blues")
-
-# line layer
-g <- g +
-  geom_line(aes(y = .data$value.y), color = "#3182BD") + # corrected
-  geom_line(aes(y = .data$value.x)) + # reported
-  geom_line(data = pd$points_df, 
-            mapping = aes(y = .data$value),
-            color = "orange", size = 1) +
-  geom_point(aes(y = .data$value.x)) + # reported gets dots
-  geom_point(data = pd$points_df, 
-             mapping = aes(y = .data$value),
-             color = "orange", size = 3)
-
-g + theme_bw(base_size = 20) + 
-  facet_wrap(~geo_value, scales = "free_y", ncol = 5) +
-  theme(legend.position = "none") + ylab("") + xlab("")
+```{r, fig.height = 50, fig.width = 15, dev="CairoSVG", echo=FALSE}
+# setup the plot and join corrections to the truth
+plot_trajectory(flu_forecasts %>% filter(geo_value == "us"), "nation", start_day = "2021-11-15", ncol = 5)
 ```
 
 ## TODO: Compare to hub
 
-```{r, fig.height = 80, fig.width = 30, dev="CairoSVG", echo=FALSE}
+```{r, fig.height = 50, fig.width = 15, dev="CairoSVG", echo=FALSE}
 # hub <- get_covidhub_predictions(
 #   c("COVIDhub-4_week_ensemble", "UMass-trends_ensemble"),
-#   forecast_dates = "2022-01-10", forecast_type = "point", 
+#   forecast_dates = "2022-01-10", forecast_type = "point",
 #   ahead = 0:28, incidence_period = "day", signal = "confirmed_admissions_influenza_1d_7dav")
 # hub_and_ours <- bind_rows(
-#   hub, 
+#   hub,
 #   antelope %>% dplyr::filter(abs(quantile - .5) < 1e-3))
 # actuals <- covidcast::covidcast_signal("hhs", "confirmed_admissions_influenza_1d_7dav",
 #                                        start_day = "2021-12-01", geo_type = "state")
@@ -144,7 +54,7 @@ g + theme_bw(base_size = 20) +
 #   geom_line(data = actuals, aes(time_value, value), color = "black") +
 #   geom_point(data = actuals, aes(time_value, value), color = "black", size=3) +
 #   scale_color_brewer(palette = "Set1") +
-#   facet_wrap(~geo_value, scales = "free_y", ncol=5) + 
+#   facet_wrap(~geo_value, scales = "free_y", ncol=5) +
 #   theme_bw(base_size = 30) +
 #   theme(legend.position = "bottom")
 ```

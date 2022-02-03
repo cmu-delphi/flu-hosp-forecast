@@ -20,7 +20,7 @@ states_dc_pr_vi = c('al', 'ak', 'az', 'ar', 'ca', 'co', 'ct', 'dc', 'de', 'fl',
                     'nj', 'nm', 'ny', 'nc', 'nd', 'oh', 'ok', 'or', 'pa', 'ri',
                     'sc', 'sd', 'tn', 'tx', 'ut', 'vt', 'va', 'wa', 'wv', 'wi',
                     'wy', 'pr', 'vi')
-forecast_dates = lubridate::today() 
+forecast_dates = lubridate::today()
 
 if (strftime(forecast_dates, '%w') != '1') {
   warning('Forecaster being run on a day that is not a Monday.',
@@ -104,8 +104,7 @@ preds_state_processed = preds_state %>% inner_join (
       signal = "confirmed_admissions_influenza_1d_7dav",
       incidence_period = "day",
       forecast_date = forecast_date,
-      target = sprintf('%d wk ahead inc flu hosp',
-                       (ahead-5)/7+1),
+      target = sprintf('%d wk ahead inc flu hosp', (ahead-5)/7+1),
       target_end_date = target_end_date,
       location=state_code,
       type='quantile',
@@ -134,7 +133,12 @@ for (idx in 1:length(preds_us_list)) {
   preds_us_list[[idx]]$quantile = sort(preds_us_list[[idx]]$quantile)
   preds_us_list[[idx]]$value = sort(preds_us_list[[idx]]$value)
 }
-preds_us = bind_rows(preds_us_list)
+preds_us <- bind_rows(preds_us_list)
+preds_us$data_source <- "hhs"
+preds_us$signal <- "confirmed_admissions_influenza_1d_7dav"
+preds_us$forecaster <- "flu-model"
+preds_us$incidence_period <- "day"
+preds_us$geo_value <- "us"
 
 preds_full = bind_rows(preds_state_processed, preds_us) %>% arrange(
       location,
