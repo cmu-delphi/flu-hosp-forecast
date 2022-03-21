@@ -1,3 +1,4 @@
 .RData
 .Rhistory
 code/data-forecasts/**
+*.log
