@@ -83,7 +83,7 @@ preds_state <- get_predictions(quantgen_forecaster,
 t1 = Sys.time()
 print(t1-t0)
 
-state_pop = readr::read_csv('state_pop.csv') %>% rename (
+state_pop = readr::read_csv('state_pop.csv', show_col_types = FALSE) %>% rename (
       geo_value=state_id,
     ) %>% select (
       -state_name,
