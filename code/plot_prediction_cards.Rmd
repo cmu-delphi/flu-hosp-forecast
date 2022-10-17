@@ -15,10 +15,24 @@ library(aws.s3)
 library(covidcast)
 library(readr)
 library(pipeR)
+library(magrittr)
+
+#### BEGIN copied/adapted from cmu-delphi/hospitalization-forecaster
+source("plotting.R")
+
+exclude_geos <- character(0L)
+
+plot_state_forecasters_ <- function(df) {
+  plot_state_forecasters(df %>% filter(geo_value != "us"), exclude_geos = exclude_geos, start_day = "2022-01-01", ncol = 2, offline_signal_dir = here::here("cache/signals")) %>% suppressMessages() %>% suppressWarnings()
+}
+
+plot_nation_forecasters_ <- function(df) {
+  plot_nation_forecasters(df %>% filter(geo_value == "us"), exclude_geos = exclude_geos, start_day = "2022-01-01", offline_signal_dir = here::here("cache/signals")) %>% suppressMessages() %>% suppressWarnings()
+}
+#### END copied/adapted from cmu-delphi/hospitalization-forecaster
 
 predictions_file <- here::here("code", "data-forecasts", "CMU-TimeSeries", sprintf("%s-CMU-TimeSeries-prediction-cards.csv", Sys.Date()))
-flu_forecasts <- read_csv(predictions_file, show_col_types = FALSE) %>%
-    mutate(value = value / 7)
+flu_forecasts <- read_csv(predictions_file, show_col_types = FALSE)
 # hhs_data <- covidcast_signal(data_source = "hhs", signal = "confirmed_admissions_influenza_1d_7dav", geo_type = "state", start_day = "2021-11-15") %>% 
 #             as_tibble %>% group_by(geo_value) %>% summarize(hhs_mean = mean(value))
 # chng_data <- covidcast_signal(data_source = "chng", signal = "smoothed_adj_outpatient_flu", geo_type = "state", start_day = "2021-11-15") %>% 
@@ -36,14 +50,14 @@ flu_forecasts <- read_csv(predictions_file, show_col_types = FALSE) %>%
 * Fan displays 50/80/95% confidence intervals
 * Black line is `confirmed_admissions_influenza_1d_7dav`.
 
-```{r, fig.height = 50, fig.width = 15, dev="CairoSVG", echo=FALSE}
+```{r, fig.height = 80, fig.width = 15, echo=FALSE}
 # setup the plot and join corrections to the truth
-plot_trajectory(flu_forecasts, data_source = "hhs", geo_type = "state", start_day = "2021-11-15", ncol = 5)
+plot_state_forecasters_(flu_forecasts) %>% plotly::ggplotly()
 ```
 
-```{r, fig.height = 50, fig.width = 15, dev="CairoSVG", echo=FALSE}
+```{r, fig.height = 10, fig.width = 15, echo=FALSE}
 # setup the plot and join corrections to the truth
-plot_trajectory(flu_forecasts %>% filter(geo_value == "us"), data_source = "hhs", geo_type = "nation", start_day = "2021-11-15", ncol = 5)
+plot_nation_forecasters_(flu_forecasts) %>% plotly::ggplotly()
 ```
 
 ## TODO: Compare to hub
