@@ -13,11 +13,11 @@ pip install -r requirements.txt
 To produce forecasts, from the `code/` directory run
 
 ```sh
-hug -f runner.py -c make_forecasts
+python runner.py make-forecasts
 ```
 
 To make a notebook with forecast plots, from the `code/` directory run
 
 ```sh
-hug -f runner.py -c make_notebook
+python runner.py make-notebook
 ```
