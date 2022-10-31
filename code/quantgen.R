@@ -393,10 +393,20 @@ make_forecaster_with_prespecified_args = function(forecaster, ...) {
 
 #### END
 
+make_named_forecaster = function(forecaster, forecaster.name) {
+  (function(df_list, forecast_date, ...) {
+    forecaster(df_list, forecast_date, ...)
+  }) %>% `class<-`("named_forecaster")
+}
+
 forecaster_name = function(forecaster) {
   UseMethod("forecaster_name", forecaster)
 }
 
 forecaster_name.caching_forecaster = function(forecaster) {
+  environment(forecaster)[["forecaster.name"]]
+}
+
+forecaster_name.named_forecaster = function(forecaster) {
   environment(forecaster)[["forecaster.name"]]
 }

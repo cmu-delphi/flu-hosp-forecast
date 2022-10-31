@@ -25,7 +25,7 @@ geo_type <- 'state'
 response_data_source = 'hhs'
 response_signal = 'confirmed_admissions_influenza_1d_prop_7dav'
 ahead = 5 + 7*(0:3)
-ntrain = 21
+ntrain_reference = 21
 lags = c(0, 7, 14)
 tau = evalcast::covidhub_probs()
 states_dc_pr_vi = c('al', 'ak', 'az', 'ar', 'ca', 'co', 'ct', 'dc', 'de', 'fl',
@@ -42,7 +42,7 @@ make_start_day_ar = function(ahead, ntrain, lags) {
   }
   return(start_day_ar)
 }
-start_day_ar = make_start_day_ar(ahead, ntrain, lags)
+start_day_ar_reference = make_start_day_ar(ahead, ntrain_reference, lags)
 
 idx = 1
 auxiliary_signals_df = tribble(
@@ -50,14 +50,110 @@ auxiliary_signals_df = tribble(
   'chng',       'smoothed_adj_outpatient_flu', list(lags, lags),
   )
 
-signals_ar = tibble::tibble(
+signals_ar_reference = tibble::tibble(
   data_source = unique(c(response_data_source,
                          auxiliary_signals_df$data_source[idx])),
   signal = unique(c(response_signal,
                     auxiliary_signals_df$signal[idx])),
-  start_day = list(start_day_ar),
+  start_day = list(start_day_ar_reference),
   geo_values=list(states_dc_pr_vi),
   geo_type=geo_type)
+
+# TODO refactor out the prespecified arglist copying; either use dynamic dots +
+# prespecification, pair with arglists later, or some other approach.
+
+production_forecaster_reference =
+  quantgen_forecaster %>%
+  make_forecaster_with_prespecified_args(
+    signals=signals_ar_reference,
+    incidence_period='day',
+    ahead=ahead,
+    geo_type=geo_type,
+    tau=tau,
+    n=ntrain_reference,
+    lags=auxiliary_signals_df$lags[[idx]],
+    lambda=0,
+    nonneg=TRUE,
+    sort=TRUE,
+    lp_solver='glpk' # Docker doesn't support Gurobi
+  )
+
+production_forecaster_latencyfix =
+  production_forecaster_reference %>%
+  make_forecaster_account_for_response_latency() %>%
+  make_forecaster_with_prespecified_args(
+    signals=signals_ar_reference,
+    incidence_period='day',
+    ahead=ahead,
+    geo_type=geo_type,
+    tau=tau,
+    n=ntrain_reference,
+    lags=auxiliary_signals_df$lags[[idx]],
+    lambda=0,
+    nonneg=TRUE,
+    sort=TRUE,
+    lp_solver='glpk' # Docker doesn't support Gurobi
+  )
+
+ntrain_nowindow = 1000L * 365L
+
+start_day_ar_nowindow = make_start_day_ar(ahead, ntrain_nowindow, lags)
+
+signals_ar_nowindow = tibble::tibble(
+  data_source = unique(c(response_data_source,
+                         auxiliary_signals_df$data_source[idx])),
+  signal = unique(c(response_signal,
+                    auxiliary_signals_df$signal[idx])),
+  start_day = list(start_day_ar_nowindow),
+  geo_values=list(states_dc_pr_vi),
+  geo_type=geo_type)
+
+production_forecaster_nowindow =
+  quantgen_forecaster %>%
+  make_forecaster_with_prespecified_args(
+    signals=signals_ar_nowindow,
+    incidence_period='day',
+    ahead=ahead,
+    geo_type=geo_type,
+    tau=tau,
+    n=ntrain_nowindow,
+    lags=auxiliary_signals_df$lags[[idx]],
+    lambda=0,
+    nonneg=TRUE,
+    sort=TRUE,
+    lp_solver='glpk' # Docker doesn't support Gurobi
+  )
+
+production_forecaster_nowindow_latencyfix =
+  quantgen_forecaster %>%
+  make_forecaster_account_for_response_latency() %>%
+  make_forecaster_with_prespecified_args(
+    signals=signals_ar_nowindow,
+    incidence_period='day',
+    ahead=ahead,
+    geo_type=geo_type,
+    tau=tau,
+    n=ntrain_nowindow,
+    lags=auxiliary_signals_df$lags[[idx]],
+    lambda=0,
+    nonneg=TRUE,
+    sort=TRUE,
+    lp_solver='glpk' # Docker doesn't support Gurobi
+  )
+
+production_forecaster_alternatives = list(
+  # pair forecaster functions with corresponding signal specs:
+  production_forecaster_reference = list(forecaster=production_forecaster_reference, signals=signals_ar_reference),
+  production_forecaster_latencyfix = list(forecaster=production_forecaster_latencyfix, signals=signals_ar_reference),
+  production_forecaster_nowindow = list(forecaster=production_forecaster_nowindow, signals=signals_ar_nowindow),
+  production_forecaster_nowindow_latencyfix = list(forecaster=production_forecaster_nowindow_latencyfix, signals=signals_ar_nowindow)
+) %>%
+  # add caching:
+  map2(names(.), function(alternative, name) {
+    list(forecaster = alternative$forecaster %>%
+           make_caching_forecaster(name, cache.parent.dirpath = here::here("cache/forecasts")),
+         signals = alternative$signals)
+  })
 
 # bettermc::mclapply inside `get_predictions` can make it harder to debug, even
 # when using only one core; just use a workaround disable it for now.
@@ -71,64 +167,30 @@ if (!exists("bmc_mclapply_backup")) {
   assignInNamespace(ns="bettermc", "mclapply", bmc_mclapply_replacement)
 }
 
-exploration_preds_state =
-  get_predictions(quantgen_forecaster %>%
-                    make_caching_forecaster("production_forecaster_reference", here::here("cache/forecasts")),
-                  "production_forecaster_reference",
-                  signals_ar,
-                  forecast_dates,
-                  incidence_period='day',
-                  forecaster_args=list(
-                    signals=signals_ar,
+exploration_preds_state_by_forecaster_quantgen =
+  production_forecaster_alternatives %>%
+  map(function(alternative) {
+    get_predictions(alternative$forecaster,
+                    forecaster_name(alternative$forecaster),
+                    alternative$signals,
+                    forecast_dates,
                     incidence_period='day',
-                    ahead=ahead,
-                    geo_type=geo_type,
-                    tau=tau,
-                    n=ntrain,
-                    lags=auxiliary_signals_df$lags[[idx]],
-                    lambda=0,
-                    nonneg=TRUE,
-                    sort=TRUE,
-                    lp_solver='glpk' # Docker doesn't support Gurobi
-                  ),
-                  offline_signal_dir = here::here("cache/signals"))
+                    forecaster_args=list(),
+                    offline_signal_dir = here::here("cache/signals"))
+  })
 
-quantgen_forecaster_latencyfix = make_forecaster_account_for_response_latency(quantgen_forecaster)
-
-exploration_preds_state_latencyfix =
-  get_predictions(quantgen_forecaster_latencyfix %>%
-                    make_caching_forecaster("production_forecaster_latencyfix", here::here("cache/forecasts")),
-                  "production_forecaster_latencyfix",
-                  signals_ar,
-                  forecast_dates,
-                  incidence_period='day',
-                  forecaster_args=list(
-                    signals=signals_ar,
-                    incidence_period='day',
-                    ahead=ahead,
-                    geo_type=geo_type,
-                    tau=tau,
-                    n=ntrain,
-                    lags=auxiliary_signals_df$lags[[idx]],
-                    lambda=0,
-                    nonneg=TRUE,
-                    sort=TRUE,
-                    lp_solver='glpk' # Docker doesn't support Gurobi
-                  ),
-                  offline_signal_dir = here::here("cache/signals"))
-
-ntrain_baseline = 28
+ntrain_reference_baseline = 28
 
 # To user with future_map, we must evaluate these globals ahead of time
-make_start_day_baseline = function(ntrain_baseline) {
-  offset = eval(1 - ntrain_baseline - 4)
+make_start_day_baseline = function(ntrain_reference_baseline) {
+  offset = eval(1 - ntrain_reference_baseline - 4)
   start_day_baseline = function(forecast_date) {
     return(as.Date(forecast_date) + offset)
   }
   return(start_day_baseline)
 }
 
-start_day_baseline = make_start_day_baseline(ntrain_baseline)
+start_day_baseline = make_start_day_baseline(ntrain_reference_baseline)
 
 signals_baseline = tibble::tibble(
   data_source = response_data_source,
@@ -149,7 +211,7 @@ exploration_preds_state_baseline =
                     ahead=ahead),
                   offline_signal_dir = here::here("cache/signals"))
 
-eval_snapshot =
+eval_state_snapshot =
   evalcast::download_signal(
     response_data_source,
     response_signal,
@@ -161,30 +223,30 @@ eval_snapshot =
     offline_signal_dir = here::here("cache/signals")
   )
 
-eval_actuals = eval_snapshot %>%
+eval_state_actuals = eval_state_snapshot %>%
   mutate(incidence_period = "day") %>%
   rename(target_end_date = time_value,
          actual = value) %>%
   full_join(tibble(ahead = .env$ahead), by=character(0L)) %>%
   mutate(forecast_date = .data$target_end_date - .data$ahead)
 
-predictions_by_forecaster = list(
-  production = exploration_preds_state,
-  latencyfix = exploration_preds_state_latencyfix,
-  baseline = exploration_preds_state_baseline
+preds_state_by_forecaster = c(
+  exploration_preds_state_by_forecaster_quantgen,
+  list(baseline = exploration_preds_state_baseline)
 )
 
 common_set_evaluations =
-  predictions_by_forecaster %>%
+  preds_state_by_forecaster %>%
   map(function(predictions) {
-    evalcast::evaluate_predictions(predictions, eval_actuals)
+    evalcast::evaluate_predictions(predictions, eval_state_actuals)
   }) %>%
   bind_rows() %>%
   group_by(.data$data_source, .data$signal, .data$incidence_period, .data$forecast_date, .data$geo_value, .data$ahead) %>%
-  filter(sum(!is.na(.data$wis)) == length(.env$predictions_by_forecaster)) %>%
+  filter(sum(!is.na(.data$wis)) == length(.env$preds_state_by_forecaster)) %>%
   ungroup()
 
-common_set_evaluations %>%
-  group_by(ahead, forecaster) %>%
-  summarize(across(c(wis, ae, coverage_80), mean)) %>%
-  arrange(ahead, wis)
+# common_set_evaluations %>%
+#   group_by(ahead, forecaster) %>%
+#   summarize(across(c(wis, ae, coverage_80), mean)) %>%
+#   arrange(ahead, wis) %>%
+#   print()
