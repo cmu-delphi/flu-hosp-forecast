@@ -6,3 +6,4 @@ code/data-forecasts/**
 __pycache__
 /cache/signals
 /cache/forecasts
+code/.venv
