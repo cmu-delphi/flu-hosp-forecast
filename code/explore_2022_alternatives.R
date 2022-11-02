@@ -79,7 +79,7 @@ production_forecaster_reference =
   )
 
 production_forecaster_latencyfix =
-  production_forecaster_reference %>%
+  quantgen_forecaster %>%
   make_forecaster_account_for_response_latency() %>%
   make_forecaster_with_prespecified_args(
     signals=signals_ar_reference,
