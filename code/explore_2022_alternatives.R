@@ -1,8 +1,10 @@
+library(pipeR)
 library(dplyr)
 library(tibble)
 library(evalcast)
 library(purrr)
 source('quantgen.R')
+source('ensemble.R')
 
 #### Duplicates a lot of code from other files in this repo as this is meant to
 #### be a one-off analysis and it was easier. We may want to restructure things
@@ -176,16 +178,31 @@ production_forecaster_alternatives = list(
   production_forecaster_reference = list(forecaster=production_forecaster_reference, signals=signals_ar_reference),
   production_forecaster_latencyfix = list(forecaster=production_forecaster_latencyfix, signals=signals_ar_reference),
   production_forecaster_nowindow = list(forecaster=production_forecaster_nowindow, signals=signals_ar_reference),
-  production_forecaster_nowindow_latencyfix = list(forecaster=production_forecaster_nowindow_latencyfix, signals=signals_ar_reference),
-  production_forecaster_nochng = list(forecaster=production_forecaster_nochng, signals=signals_ar_nochng),
-  production_forecaster_nowindow_latencyfix_nochng = list(forecaster=production_forecaster_nowindow_latencyfix_nochng, signals=signals_ar_nochng)
-  ) %>%
+  production_forecaster_nowindow_latencyfix = list(forecaster=production_forecaster_nowindow_latencyfix, signals=signals_ar_reference)#,
+  # production_forecaster_nochng = list(forecaster=production_forecaster_nochng, signals=signals_ar_nochng),
+  # production_forecaster_nowindow_latencyfix_nochng = list(forecaster=production_forecaster_nowindow_latencyfix_nochng, signals=signals_ar_nochng)
+) %>%
   # add caching:
   map2(names(.), function(alternative, name) {
     list(forecaster = alternative$forecaster %>%
            make_caching_forecaster(name, cache.parent.dirpath = here::here("cache/forecasts")),
          signals = alternative$signals)
-  })
+  }) %>%
+  {c(.,
+     list(
+       ens1 = list(
+         forecaster = make_ensemble_forecaster(list(.$production_forecaster_reference, .$production_forecaster_nowindow_latencyfix),
+                                               offline_signal_dir = here::here("cache/signals")),
+         signals = signals_ar_reference # dummy to satisfy framework
+       )
+     ) %>%
+       # add caching:
+       map2(names(.), function(alternative, name) {
+         list(forecaster = alternative$forecaster %>%
+                make_caching_forecaster(name, cache.parent.dirpath = here::here("cache/forecasts")),
+              signals = alternative$signals)
+       })
+     )}
 
 # bettermc::mclapply inside `get_predictions` can make it harder to debug, even
 # when using only one core; just use a workaround disable it for now.
