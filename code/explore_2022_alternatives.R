@@ -12,20 +12,18 @@ forecast_dates <- seq(
   # a Monday at/after we've had issues for both signals for 56 days:
   as.Date('2022-01-31'),
   # end bound from `make_common_params.py` on 2022-10-17:
-  as.Date('2022-09-17'),
+  as.Date('2022-10-10'),
   # only Mondays for now:
   by = "week")
 stopifnot(all(as.POSIXlt(forecast_dates)$wday == 1L))
 
 # most recent date with settled/finalized as_of data, as of sometime on
 # 2022-10-17, is 2022-10-16 (unless there are replication hiccups):
-eval_date <- '2022-10-16'
-
+eval_date <- '2022-11-06'
 geo_type <- 'state'
 response_data_source = 'hhs'
 response_signal = 'confirmed_admissions_influenza_1d_prop_7dav'
 ahead = 5 + 7*(0:3)
-ntrain_reference = 21
 lags = c(0, 7, 14)
 tau = evalcast::covidhub_probs()
 states_dc_pr_vi = c('al', 'ak', 'az', 'ar', 'ca', 'co', 'ct', 'dc', 'de', 'fl',
@@ -42,7 +40,14 @@ make_start_day_ar = function(ahead, ntrain, lags) {
   }
   return(start_day_ar)
 }
-start_day_ar_reference = make_start_day_ar(ahead, ntrain_reference, lags)
+
+ntrain_reference = 21
+ntrain_nowindow = 1000L * 365L
+
+# Use max `ntrain` value to make sure we always request and store in the cache
+# the full date range for each signal.
+ntrain <- max(ntrain_reference, ntrain_nowindow)
+start_day_ar = make_start_day_ar(ahead, ntrain, lags)
 
 idx = 1
 auxiliary_signals_df = tribble(
@@ -55,13 +60,19 @@ signals_ar_reference = tibble::tibble(
                          auxiliary_signals_df$data_source[idx])),
   signal = unique(c(response_signal,
                     auxiliary_signals_df$signal[idx])),
-  start_day = list(start_day_ar_reference),
+  start_day = list(start_day_ar),
   geo_values=list(states_dc_pr_vi),
   geo_type=geo_type)
 
+signals_ar_nochng = tibble::tibble(
+                          data_source = c(response_data_source),
+                          signal = c(response_signal),
+                          start_day = list(start_day_ar),
+                          geo_values=list(states_dc_pr_vi),
+                          geo_type=geo_type)
+
 # TODO refactor out the prespecified arglist copying; either use dynamic dots +
 # prespecification, pair with arglists later, or some other approach.
-
 production_forecaster_reference =
   quantgen_forecaster %>%
   make_forecaster_with_prespecified_args(
@@ -75,9 +86,8 @@ production_forecaster_reference =
     lambda=0,
     nonneg=TRUE,
     sort=TRUE,
-    lp_solver='glpk' # Docker doesn't support Gurobi
+    lp_solver='gurobi' # Docker doesn't support Gurobi
   )
-
 production_forecaster_latencyfix =
   quantgen_forecaster %>%
   make_forecaster_account_for_response_latency() %>%
@@ -92,26 +102,13 @@ production_forecaster_latencyfix =
     lambda=0,
     nonneg=TRUE,
     sort=TRUE,
-    lp_solver='glpk' # Docker doesn't support Gurobi
+    lp_solver='gurobi' # Docker doesn't support Gurobi
   )
-
-ntrain_nowindow = 1000L * 365L
-
-start_day_ar_nowindow = make_start_day_ar(ahead, ntrain_nowindow, lags)
-
-signals_ar_nowindow = tibble::tibble(
-  data_source = unique(c(response_data_source,
-                         auxiliary_signals_df$data_source[idx])),
-  signal = unique(c(response_signal,
-                    auxiliary_signals_df$signal[idx])),
-  start_day = list(start_day_ar_nowindow),
-  geo_values=list(states_dc_pr_vi),
-  geo_type=geo_type)
 
 production_forecaster_nowindow =
   quantgen_forecaster %>%
   make_forecaster_with_prespecified_args(
-    signals=signals_ar_nowindow,
+    signals=signals_ar_reference,
     incidence_period='day',
     ahead=ahead,
     geo_type=geo_type,
@@ -121,14 +118,14 @@ production_forecaster_nowindow =
     lambda=0,
     nonneg=TRUE,
     sort=TRUE,
-    lp_solver='glpk' # Docker doesn't support Gurobi
+    lp_solver='gurobi' # Docker doesn't support Gurobi
   )
 
 production_forecaster_nowindow_latencyfix =
   quantgen_forecaster %>%
   make_forecaster_account_for_response_latency() %>%
   make_forecaster_with_prespecified_args(
-    signals=signals_ar_nowindow,
+    signals=signals_ar_reference,
     incidence_period='day',
     ahead=ahead,
     geo_type=geo_type,
@@ -138,16 +135,51 @@ production_forecaster_nowindow_latencyfix =
     lambda=0,
     nonneg=TRUE,
     sort=TRUE,
-    lp_solver='glpk' # Docker doesn't support Gurobi
+    lp_solver='gurobi' # Docker doesn't support Gurobi
+  )
+
+production_forecaster_nochng =
+  quantgen_forecaster %>%
+  make_forecaster_with_prespecified_args(
+    signals=signals_ar_nochng,
+    incidence_period='day',
+    ahead=ahead,
+    geo_type=geo_type,
+    tau=tau,
+    n=ntrain_reference,
+    lags=list(lags),
+    lambda=0,
+    nonneg=TRUE,
+    sort=TRUE,
+    lp_solver='gurobi' # Docker doesn't support Gurobi
+  )
+
+production_forecaster_nowindow_latencyfix_nochng =
+  quantgen_forecaster %>%
+  make_forecaster_account_for_response_latency() %>%
+  make_forecaster_with_prespecified_args(
+    signals=signals_ar_nochng,
+    incidence_period='day',
+    ahead=ahead,
+    geo_type=geo_type,
+    tau=tau,
+    n=ntrain_nowindow,
+    lags=list(lags),
+    lambda=0,
+    nonneg=TRUE,
+    sort=TRUE,
+    lp_solver='gurobi' # Docker doesn't support Gurobi
   )
 
 production_forecaster_alternatives = list(
   # pair forecaster functions with corresponding signal specs:
   production_forecaster_reference = list(forecaster=production_forecaster_reference, signals=signals_ar_reference),
   production_forecaster_latencyfix = list(forecaster=production_forecaster_latencyfix, signals=signals_ar_reference),
-  production_forecaster_nowindow = list(forecaster=production_forecaster_nowindow, signals=signals_ar_nowindow),
-  production_forecaster_nowindow_latencyfix = list(forecaster=production_forecaster_nowindow_latencyfix, signals=signals_ar_nowindow)
-) %>%
+  production_forecaster_nowindow = list(forecaster=production_forecaster_nowindow, signals=signals_ar_reference),
+  production_forecaster_nowindow_latencyfix = list(forecaster=production_forecaster_nowindow_latencyfix, signals=signals_ar_reference),
+  production_forecaster_nochng = list(forecaster=production_forecaster_nochng, signals=signals_ar_nochng),
+  production_forecaster_nowindow_latencyfix_nochng = list(forecaster=production_forecaster_nowindow_latencyfix_nochng, signals=signals_ar_nochng)
+  ) %>%
   # add caching:
   map2(names(.), function(alternative, name) {
     list(forecaster = alternative$forecaster %>%
@@ -170,6 +202,7 @@ if (!exists("bmc_mclapply_backup")) {
 exploration_preds_state_by_forecaster_quantgen =
   production_forecaster_alternatives %>%
   map(function(alternative) {
+    print(paste("forecaster:", forecaster_name(alternative$forecaster)))
     get_predictions(alternative$forecaster,
                     forecaster_name(alternative$forecaster),
                     alternative$signals,
@@ -250,3 +283,5 @@ common_set_evaluations =
 #   summarize(across(c(wis, ae, coverage_80), mean)) %>%
 #   arrange(ahead, wis) %>%
 #   print()
+
+warnings()
