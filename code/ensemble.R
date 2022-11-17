@@ -46,9 +46,11 @@ make_ensemble_forecaster = function(component_alternatives, offline_signal_dir) 
       summarize(forecast = list(approx_cdf_from_quantiles(value, quantile)), .groups = "drop_last") %>>%
       summarize(
         quantile = output_taus,
-        value = quantile(weighted_mean_approx_cdfs(forecast, rep(1 / length(forecast), length(forecast))), output_taus), .groups = "drop"
+        value = quantile(weighted_mean_approx_cdfs(forecast, rep(1 / length(forecast), length(forecast))), output_taus),
+        .groups = "drop"
       ) %>>%
-      ## XXX select out the columns that evalcast expects and let it augment; assume without checking we didn't need the extra info
+      ## XXX select out the columns that evalcast expects and let it augment;
+      #  assume without checking we didn't need the extra info
       select(geo_value, value, ahead, quantile)
   })
 }

@@ -3,6 +3,7 @@ library(tibble)
 library(covidcast)
 library(evalcast)
 source('quantgen.R')
+source('ensemble.R')
 
 ###############################################################################
 # SETUP                                                                       #
@@ -11,7 +12,8 @@ geo_type <- 'state'
 response_data_source = 'hhs'
 response_signal = 'confirmed_admissions_influenza_1d_prop_7dav'
 ahead = 5 + 7*(0:3)
-ntrain = 21
+ntrain_reference = 21
+ntrain_nowindow = 1000L * 365L
 lags = c(0, 7, 14)
 tau = evalcast::covidhub_probs()
 states_dc_pr_vi = c('al', 'ak', 'az', 'ar', 'ca', 'co', 'ct', 'dc', 'de', 'fl',
@@ -35,7 +37,9 @@ make_start_day_ar = function(ahead, ntrain, lags) {
   }
   return(start_day_ar)
 }
-start_day_ar = make_start_day_ar(ahead, ntrain, lags)
+# Use the larger `ntrain` value to make sure we always request and store in
+# the cache the full date range for each signal.
+start_day_ar = make_start_day_ar(ahead, ntrain_nowindow, lags)
 
 ###############################################################################
 # SETTINGS FOR DIFFERENT MODELS                                               #
@@ -49,7 +53,7 @@ signals_df = tribble(
 ###############################################################################
 # LEARN THE QAR MODEL AND SAVE OUTPUT                                         #
 ###############################################################################
-forecaster_name = signals_df$name[idx]
+cmu_forecaster_name = signals_df$name[idx]
 
 signals_ar = tibble::tibble(
                       data_source = unique(c(response_data_source,
@@ -60,28 +64,75 @@ signals_ar = tibble::tibble(
                       geo_values=list(states_dc_pr_vi),
                       geo_type=geo_type)
 
+production_forecaster_reference = list(
+  forecaster = quantgen_forecaster %>%
+  make_forecaster_with_prespecified_args(
+    signals=signals_ar,
+    incidence_period='day',
+    ahead=ahead,
+    geo_type=geo_type,
+    tau=tau,
+    n=ntrain_reference,
+    lags=signals_df$lags[[idx]],
+    lambda=0,
+    nonneg=TRUE,
+    sort=TRUE,
+    lp_solver='gurobi'
+  ) %>%
+    make_named_forecaster("reference"),
+  signals=signals_ar
+)
+
+production_forecaster_nowindow_latencyfix = list(
+  forecaster = quantgen_forecaster %>%
+  make_forecaster_account_for_response_latency() %>%
+  make_forecaster_with_prespecified_args(
+    signals=signals_ar,
+    incidence_period='day',
+    ahead=ahead,
+    geo_type=geo_type,
+    tau=tau,
+    n=ntrain_nowindow,
+    lags=signals_df$lags[[idx]],
+    lambda=0,
+    nonneg=TRUE,
+    sort=TRUE,
+    lp_solver='gurobi'
+  ) %>%
+    make_named_forecaster("nowindow_latencyfix"),
+  signals=signals_ar
+)
+
+ens1 = make_ensemble_forecaster(
+  list(production_forecaster_reference, production_forecaster_nowindow_latencyfix),
+  offline_signal_dir = here::here("cache/signals")
+)
+
+# bettermc::mclapply inside `get_predictions` can make it harder to debug, even
+# when using only one core; just use a workaround disable it for now.
+invisible(bettermc::mclapply) # make sure bettermc is loaded (but not necessarily attached)
+if (!exists("bmc_mclapply_backup")) {
+  bmc_mclapply_backup = bettermc::mclapply
+  bmc_mclapply_replacement = rlang::new_function(
+    rlang::fn_fmls(bettermc::mclapply),
+    quote(lapply(X, FUN, ...))
+  )
+  assignInNamespace(ns="bettermc", "mclapply", bmc_mclapply_replacement)
+}
+
 t0 = Sys.time()
-preds_state <- get_predictions(quantgen_forecaster,
-                      forecaster_name,
+preds_state <- get_predictions(ens1,
+                      cmu_forecaster_name,
                       signals_ar,
                       forecast_dates,
                       incidence_period='day',
-                      forecaster_args=list(
-                          signals=signals_ar,
-                          incidence_period='day',
-                          ahead=ahead,
-                          geo_type=geo_type,
-                          tau=tau,
-                          n=ntrain,
-                          lags=signals_df$lags[[idx]], 
-                          lambda=0,
-                          nonneg=TRUE,
-                          sort=TRUE,
-                          lp_solver='glpk' # Docker doesn't support Gurobi
-                          )
-                      )
+                      forecaster_args=list()
+                )
 t1 = Sys.time()
 print(t1-t0)
+
+# Delete cached signal files.
+unlink(here::here("cache/signals"), recursive=TRUE)
 
 state_pop = readr::read_csv('state_pop.csv', show_col_types = FALSE) %>% rename (
       geo_value=state_id,
