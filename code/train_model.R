@@ -108,18 +108,6 @@ ens1 = make_ensemble_forecaster(
   offline_signal_dir = here::here("cache/signals")
 )
 
-# bettermc::mclapply inside `get_predictions` can make it harder to debug, even
-# when using only one core; just use a workaround disable it for now.
-invisible(bettermc::mclapply) # make sure bettermc is loaded (but not necessarily attached)
-if (!exists("bmc_mclapply_backup")) {
-  bmc_mclapply_backup = bettermc::mclapply
-  bmc_mclapply_replacement = rlang::new_function(
-    rlang::fn_fmls(bettermc::mclapply),
-    quote(lapply(X, FUN, ...))
-  )
-  assignInNamespace(ns="bettermc", "mclapply", bmc_mclapply_replacement)
-}
-
 t0 = Sys.time()
 preds_state <- get_predictions(ens1,
                       cmu_forecaster_name,
