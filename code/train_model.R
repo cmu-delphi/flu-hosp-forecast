@@ -25,8 +25,8 @@ states_dc_pr_vi = c('al', 'ak', 'az', 'ar', 'ca', 'co', 'ct', 'dc', 'de', 'fl',
 forecast_dates = lubridate::today()
 
 if (strftime(forecast_dates, '%w') != '1') {
-  warning('Forecaster being run on a day that is not a Monday.',
-          'The forecaster assumes that it is being run on Monday',
+  warning('Forecaster being run on a day that is not a Monday. ',
+          'The forecaster assumes that it is being run on Monday ',
           'in which aheads are predicted.')
 }
 

@@ -1,5 +1,8 @@
 library(quantgen)
 library(tidyr)
+library(assertthat)
+library(rlang)
+library(dplyr)
 
 #' Helper functions
 
@@ -171,9 +174,9 @@ quantgen_forecaster = function(df_list, forecast_date, signals, incidence_period
   # Loop over ahead values, fit model, make predictions
   results_list = parallel::mclapply(1:length(ahead), function(i) {
   #for (i in 1:length(ahead)) {
+    print(paste(i, "out of", length(ahead), "aheads"))
     a = ahead[i]
     if (verbose) cat(sprintf("%s%i", ifelse(i == 1, "\nahead = ", ", "), a))
-
     # Training end date
     response_end_date = df_wide %>%
       select(time_value, tidyselect::starts_with(sprintf("value+%i:", a))) %>%
@@ -221,7 +224,7 @@ quantgen_forecaster = function(df_list, forecast_date, signals, incidence_period
              value = as.numeric(value),
              ahead = a)
     return(list(predict_df, predict_params))
-  }, mc.cores=n_core)
+  }, mc.cores=n_core, mc.allow.recursive=FALSE)
   #}
   if (verbose) cat("\n")
 
@@ -238,4 +241,172 @@ quantgen_forecaster = function(df_list, forecast_date, signals, incidence_period
 
   # Collapse predictions into one big data frame, and return
   return(do.call(rbind, result))
+}
+
+#### BEGIN copied content from cmu-delphi/hospitalization-forecaster
+#### baseline-forecaster/forecaster-utils.R as of 2022-10-17, slightly
+#### reformatted
+
+# Make a forecaster that indexes aheads relative to the forecast_date from one
+# that indexes them relative to the time_value of the latest response value
+# available. Assumes that the first df in the df_list is the response. Assumes
+# indexing is relative to the latest response and does not change based on
+# covariate availability, and that there are no NA entries that might be
+# omitted before such indexing. Only precisely works if this indexing is
+# performed across all geos simultaneously, or if the latest response time
+# value is the same across all geos. Requires `ahead` to be specified by name.
+make_forecaster_account_for_response_latency = function(forecaster) {
+  assert_that(is_function(forecaster) && any(c("ahead","...") %in% fn_fmls_names(forecaster)))
+  ##
+  return (function(df_list, forecast_date, ..., incidence_period, ahead) {
+    assert_that(identical(incidence_period, "day"))
+    ##
+    max_response_time_value = max(df_list[[1L]][["time_value"]])
+    response_latency = as.integer(forecast_date - max_response_time_value)
+    ahead_of_latest_response = ahead + response_latency
+    forecast_relative_to_latest_response = forecaster(df_list=df_list, forecast_date=forecast_date, ..., ahead=ahead_of_latest_response)
+    assert_that(! "target_end_date" %in% names(forecast_relative_to_latest_response))
+    forecast = forecast_relative_to_latest_response %>%
+      mutate(ahead = .data$ahead - .env$response_latency)
+    return (forecast)
+  })
+}
+
+match_scalar_fn_arg = function(arg) {
+  fmls = fn_fmls(caller_fn())
+  arg.as.character = as.character(ensym(arg))
+  assert_that(arg.as.character %in% names(fmls), msg=sprintf('arg name (%s) was not in formal arg names (%s)', arg.as.character, toString(names(fmls))))
+  choices = eval_bare(fmls[[arg.as.character]], caller_env())
+  if (identical(arg, choices)) {
+    ## (arg was probably missing in call to caller_fn() since it is identical to
+    ## the full list of choices; assume that this indeed was the case and
+    ## replace it with the first choice:)
+    arg <- choices[[1L]]
+  }
+  assert_that(if (is.list(choices)) list(arg) %in% choices else arg %in% choices,
+              msg=paste(collapse="\n",capture.output({
+                cat('arg was not in choices;\n')
+                cat('arg:\n')
+                print(arg)
+                cat('choices:\n')
+                print(choices)
+              })))
+  return (arg)
+}
+
+make_caching_forecaster = function(forecaster, forecaster.name, cache.parent.dirpath, replace.results.with.trivial.for.mem=FALSE, disable.saving=list(FALSE,"TRUE.because.internal.saving",TRUE)) {
+  assert_that(is_function(forecaster))
+  assert_that(is_scalar_character(forecaster.name))
+  assert_that(is_bool(replace.results.with.trivial.for.mem))
+  assert_that(is_scalar_character(cache.parent.dirpath))
+  disable.saving <- match_scalar_fn_arg(disable.saving)
+  cache.parent.dirpath <- here::here(cache.parent.dirpath)
+  ##
+  (function(df_list, forecast_date, ...) {
+    if (!dir.exists(cache.parent.dirpath)) {
+      dir.create(cache.parent.dirpath)
+    }
+    cache.dirpath = file.path(cache.parent.dirpath, forecaster.name)
+    cache.filepath = file.path(cache.dirpath, paste0(forecast_date,".RDS"))
+    trivial.results = tibble(ahead=1L,geo_value="-1",quantile=0.5,value=NA_real_)
+    if (file.exists(cache.filepath)) {
+      if (replace.results.with.trivial.for.mem) {
+        cat('Cache file exists, but skipping loading & returning trivial results\n')
+        return (trivial.results)
+      } else {
+        cat('Loading forecast from cache.\n')
+        return (readRDS(cache.filepath))
+      }
+    } else {
+      cat(sprintf('No cache file found; generating result and %s at %s.\n',
+                  switch(disable.saving,
+                         "FALSE"="storing",
+                         "TRUE.because.internal.saving"="not storing at this level (saving is internal)",
+                         "TRUE"="NOT storing (saving disabled)"),
+                  cache.filepath))
+      ## We save time and have the same effect by skipping generating the
+      ## forecast if disable.saving is TRUE (and there is no internal saving)
+      ## and we are replacing the results with the trivial results.
+      if (! (identical(disable.saving, TRUE) && replace.results.with.trivial.for.mem) ) {
+        forecast = forecaster(df_list, forecast_date, ...)
+      }
+      ## We save only in the disable.saving FALSE case; we don't save in either
+      ## the TRUE or "TRUE.because.internal.saving" cases.
+      if (identical(disable.saving, FALSE)) {
+        if (!dir.exists(cache.dirpath)) {
+          dir.create(cache.dirpath)
+        }
+        saveRDS(forecast, cache.filepath)
+      }
+      if (replace.results.with.trivial.for.mem) {
+        return (trivial.results)
+      } else {
+        return (forecast)
+      }
+    }
+  }) %>% `class<-`(c("caching_forecaster", "function"))
+}
+
+cached_forecast_is_available = function(forecaster, forecast_date) {
+  UseMethod("cached_forecast_is_available", forecaster)
+}
+cached_forecast_is_available.default = function(forecaster, forecast_date) {
+  return (FALSE)
+}
+cached_forecast_is_available.caching_forecaster = function(forecaster, forecast_date) {
+  assert_that (is_scalar_atomic(forecast_date) && inherits(forecast_date, "Date"))
+  ##
+  caching.env = environment(forecaster)
+  cache.dirpath = file.path(caching.env$cache.parent.dirpath, caching.env$forecaster.name)
+  cache.filepath = file.path(cache.dirpath, paste0(forecast_date,".RDS"))
+  return (file.exists(cache.filepath))
+}
+
+fetch_cached_forecast = function(forecaster, forecast_date) {
+  UseMethod("fetch_cached_forecast", forecaster)
+}
+fetch_cached_forecast.caching_forecaster = function(forecaster, forecast_date) {
+  assert_that (is_scalar_atomic(forecast_date) && inherits(forecast_date, "Date"))
+  assert_that (cached_forecast_is_available(forecaster, forecast_date))
+  ##
+  ## TODO avoid code duplication and worries about race conditions
+  caching.env = environment(forecaster)
+  cache.dirpath = file.path(caching.env$cache.parent.dirpath, caching.env$forecaster.name)
+  cache.filepath = file.path(cache.dirpath, paste0(forecast_date,".RDS"))
+  trivial.results = tibble(ahead=1L,geo_value="-1",quantile=0.5,value=NA_real_)
+  if (caching.env$replace.results.with.trivial.for.mem) {
+    return (trivial.results)
+  } else {
+    return (readRDS(cache.filepath))
+  }
+}
+
+#### END copied content
+
+#### BEGIN another chunk from forecaster-utils.R
+
+make_forecaster_with_prespecified_args = function(forecaster, ...) {
+  function(df_list, forecast_date) {
+    forecaster(df_list, forecast_date, ...)
+  }
+}
+
+#### END
+
+make_named_forecaster = function(forecaster, forecaster.name) {
+  (function(df_list, forecast_date, ...) {
+    forecaster(df_list, forecast_date, ...)
+  }) %>% `class<-`("named_forecaster")
+}
+
+forecaster_name = function(forecaster) {
+  UseMethod("forecaster_name", forecaster)
+}
+
+forecaster_name.caching_forecaster = function(forecaster) {
+  environment(forecaster)[["forecaster.name"]]
+}
+
+forecaster_name.named_forecaster = function(forecaster) {
+  environment(forecaster)[["forecaster.name"]]
 }
