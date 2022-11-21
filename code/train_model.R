@@ -77,7 +77,7 @@ preds_state <- get_predictions(quantgen_forecaster,
                           lambda=0,
                           nonneg=TRUE,
                           sort=TRUE,
-                          lp_solver='glpk' # Docker doesn't support Gurobi
+                          lp_solver='gurobi' # Docker doesn't support Gurobi
                           )
                       )
 t1 = Sys.time()
