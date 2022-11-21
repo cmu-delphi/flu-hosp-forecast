@@ -71,7 +71,16 @@ weighted_mean_approx_cdfs = function(approx.cdfs, weights) {
                                    match(old.xs, result.xs),
                                    old.y.jumps)
       ## TODO store a rule in the approx_cdf?
-      new.jumpless.ys = weight * approx(old.xs, old.jumpless.ys, result.xs, rule=2L)[["y"]]
+      new.jumpless.ys = weight * (
+        if (length(old.xs) == 1L) {
+          # (This means this component is a degenerate distribution with 1 jump,
+          # no slopes; this breaks `approx` which expects to be able to do some
+          # sort of interpolation, so special-case it here.)
+          rep(0, length(result.xs))
+        } else {
+          approx(old.xs, old.jumpless.ys, result.xs, rule=2L)[["y"]]
+        }
+      )
       list(new.y.jumps=new.y.jumps, new.jumpless.ys=new.jumpless.ys)
     }) %>>%
     reduce(function(contribs1, contribs2) {
