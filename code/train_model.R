@@ -21,6 +21,8 @@ states_dc_pr_vi = c('al', 'ak', 'az', 'ar', 'ca', 'co', 'ct', 'dc', 'de', 'fl',
                     'sc', 'sd', 'tn', 'tx', 'ut', 'vt', 'va', 'wa', 'wv', 'wi',
                     'wy', 'pr', 'vi')
 forecast_dates = lubridate::today()
+cache_dir <- Sys.getenv("FLU_CACHE", "exploration")
+offline_signal_dir <- here::here(paste0("cache/", cache_dir, "/signals"))
 
 if (strftime(forecast_dates, '%w') != '1') {
   warning('Forecaster being run on a day that is not a Monday.',
