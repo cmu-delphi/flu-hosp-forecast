@@ -5,5 +5,6 @@ code/data-forecasts/**
 .python-version
 __pycache__
 /cache
+code/venv
 code/.venv
 *.html

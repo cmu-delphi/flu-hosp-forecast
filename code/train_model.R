@@ -111,7 +111,7 @@ production_forecaster_nowindow_latencyfix = list(
 
 ens1 = make_ensemble_forecaster(
   list(production_forecaster_reference, production_forecaster_nowindow_latencyfix),
-  offline_signal_dir = here::here("cache/signals")
+  offline_signal_dir = offline_signal_dir
 )
 
 t0 = Sys.time()
