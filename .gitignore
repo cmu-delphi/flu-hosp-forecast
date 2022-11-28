@@ -4,7 +4,6 @@ code/data-forecasts/**
 *.log
 .python-version
 __pycache__
-/cache/signals
-/cache/forecasts
+/cache
 code/.venv
 *.html
