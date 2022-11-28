@@ -5,6 +5,10 @@ library(evalcast)
 source('quantgen.R')
 source('ensemble.R')
 
+# This script generates forecasts for today, but production runs shouldn't run
+# this directly; instead, they should run forecaster.py, which sets the
+# FLU_CACHE to 'production'.
+
 ###############################################################################
 # SETUP                                                                       #
 ###############################################################################
