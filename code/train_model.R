@@ -125,9 +125,6 @@ preds_state <- get_predictions(ens1,
 t1 = Sys.time()
 print(t1-t0)
 
-# Delete cached signal files.
-unlink(here::here("cache/signals"), recursive=TRUE)
-
 state_pop = readr::read_csv('state_pop.csv', show_col_types = FALSE) %>% rename (
       geo_value=state_id,
     ) %>% select (
