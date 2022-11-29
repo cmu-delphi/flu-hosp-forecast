@@ -172,10 +172,9 @@ quantgen_forecaster = function(df_list, forecast_date, signals, incidence_period
 
   if (verbose) message(sprintf('Quantgen forecaster running with %d cores', n_core))
   # Loop over ahead values, fit model, make predictions
-  tictoc::tic("training models")
   results_list = parallel::mclapply(1:length(ahead), function(i) {
   #for (i in 1:length(ahead)) {
-    print(paste(i, "out of", length(ahead)))
+    print(paste(i, "out of", length(ahead), "aheads"))
     a = ahead[i]
     if (verbose) cat(sprintf("%s%i", ifelse(i == 1, "\nahead = ", ", "), a))
     # Training end date
@@ -227,7 +226,6 @@ quantgen_forecaster = function(df_list, forecast_date, signals, incidence_period
     return(list(predict_df, predict_params))
   }, mc.cores=n_core, mc.allow.recursive=FALSE)
   #}
-  tictoc::toc()
   if (verbose) cat("\n")
 
   result = lapply(results_list, function(x) x[[1]])

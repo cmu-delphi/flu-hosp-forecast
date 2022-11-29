@@ -34,6 +34,8 @@ states_dc_pr_vi = c('al', 'ak', 'az', 'ar', 'ca', 'co', 'ct', 'dc', 'de', 'fl',
                     'nj', 'nm', 'ny', 'nc', 'nd', 'oh', 'ok', 'or', 'pa', 'ri',
                     'sc', 'sd', 'tn', 'tx', 'ut', 'vt', 'va', 'wa', 'wv', 'wi',
                     'wy', 'pr', 'vi')
+offline_signal_dir <- here::here(paste0("cache/", "exploration", "/signals"))
+forecast_cache_dir <- here::here("cache/forecasts")
 
 make_start_day_ar = function(ahead, ntrain, lags) {
   offset = eval(1 - max(ahead) - ntrain - max(lags))
@@ -185,21 +187,21 @@ production_forecaster_alternatives = list(
   # add caching:
   map2(names(.), function(alternative, name) {
     list(forecaster = alternative$forecaster %>%
-           make_caching_forecaster(name, cache.parent.dirpath = here::here("cache/forecasts")),
+           make_caching_forecaster(name, cache.parent.dirpath = forecast_cache_dir),
          signals = alternative$signals)
   }) %>%
   {c(.,
      list(
        ens1 = list(
          forecaster = make_ensemble_forecaster(list(.$production_forecaster_reference, .$production_forecaster_nowindow_latencyfix),
-                                               offline_signal_dir = here::here("cache/signals")),
+                                               offline_signal_dir = offline_signal_dir),
          signals = signals_ar_reference # dummy to satisfy framework
        )
      ) %>%
        # add caching:
        map2(names(.), function(alternative, name) {
          list(forecaster = alternative$forecaster %>%
-                make_caching_forecaster(name, cache.parent.dirpath = here::here("cache/forecasts")),
+                make_caching_forecaster(name, cache.parent.dirpath = forecast_cache_dir),
               signals = alternative$signals)
        })
      )}
@@ -226,7 +228,7 @@ exploration_preds_state_by_forecaster_quantgen =
                     forecast_dates,
                     incidence_period='day',
                     forecaster_args=list(),
-                    offline_signal_dir = here::here("cache/signals"))
+                    offline_signal_dir = offline_signal_dir)
   })
 
 ntrain_reference_baseline = 28
@@ -251,7 +253,7 @@ signals_baseline = tibble::tibble(
 
 exploration_preds_state_baseline =
   get_predictions(baseline_forecaster %>%
-                    make_caching_forecaster("baseline", here::here("cache/forecasts")),
+                    make_caching_forecaster("baseline", forecast_cache_dir),
                   'Baseline',
                   signals_baseline,
                   forecast_dates,
@@ -259,7 +261,7 @@ exploration_preds_state_baseline =
                   forecaster_args=list(
                     incidence_period='day',
                     ahead=ahead),
-                  offline_signal_dir = here::here("cache/signals"))
+                  offline_signal_dir = offline_signal_dir)
 
 eval_state_snapshot =
   evalcast::download_signal(
@@ -270,7 +272,7 @@ eval_state_snapshot =
     geo_type = "state",
     geo_values = "*",
     as_of = eval_date,
-    offline_signal_dir = here::here("cache/signals")
+    offline_signal_dir = offline_signal_dir
   )
 
 eval_state_actuals = eval_state_snapshot %>%

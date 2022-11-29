@@ -31,8 +31,8 @@ cache_dir <- Sys.getenv("FLU_CACHE", "exploration")
 offline_signal_dir <- here::here(paste0("cache/", cache_dir, "/signals"))
 
 if (strftime(forecast_dates, '%w') != '1') {
-  warning('Forecaster being run on a day that is not a Monday.',
-          'The forecaster assumes that it is being run on Monday',
+  warning('Forecaster being run on a day that is not a Monday. ',
+          'The forecaster assumes that it is being run on Monday ',
           'in which aheads are predicted.')
 }
 
@@ -111,7 +111,7 @@ production_forecaster_nowindow_latencyfix = list(
 
 ens1 = make_ensemble_forecaster(
   list(production_forecaster_reference, production_forecaster_nowindow_latencyfix),
-  offline_signal_dir = here::here("cache/signals")
+  offline_signal_dir = offline_signal_dir
 )
 
 t0 = Sys.time()
@@ -124,9 +124,6 @@ preds_state <- get_predictions(ens1,
                 )
 t1 = Sys.time()
 print(t1-t0)
-
-# Delete cached signal files.
-unlink(here::here("cache/signals"), recursive=TRUE)
 
 state_pop = readr::read_csv('state_pop.csv', show_col_types = FALSE) %>% rename (
       geo_value=state_id,
