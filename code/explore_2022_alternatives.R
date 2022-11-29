@@ -14,14 +14,14 @@ forecast_dates <- seq(
   # a Monday at/after we've had issues for both signals for 56 days:
   as.Date('2022-01-31'),
   # end bound from `make_common_params.py` on 2022-10-17:
-  as.Date('2022-10-10'),
+  Sys.Date() - 2L,
   # only Mondays for now:
   by = "week")
 stopifnot(all(as.POSIXlt(forecast_dates)$wday == 1L))
 
 # most recent date with settled/finalized as_of data, as of sometime on
 # 2022-10-17, is 2022-10-16 (unless there are replication hiccups):
-eval_date <- '2022-11-06'
+eval_date <- Sys.Date() - 1L
 geo_type <- 'state'
 response_data_source = 'hhs'
 response_signal = 'confirmed_admissions_influenza_1d_prop_7dav'
@@ -178,8 +178,8 @@ production_forecaster_nowindow_latencyfix_nochng =
 production_forecaster_alternatives = list(
   # pair forecaster functions with corresponding signal specs:
   production_forecaster_reference = list(forecaster=production_forecaster_reference, signals=signals_ar_reference),
-  production_forecaster_latencyfix = list(forecaster=production_forecaster_latencyfix, signals=signals_ar_reference),
-  production_forecaster_nowindow = list(forecaster=production_forecaster_nowindow, signals=signals_ar_reference),
+  # production_forecaster_latencyfix = list(forecaster=production_forecaster_latencyfix, signals=signals_ar_reference),
+  # production_forecaster_nowindow = list(forecaster=production_forecaster_nowindow, signals=signals_ar_reference),
   production_forecaster_nowindow_latencyfix = list(forecaster=production_forecaster_nowindow_latencyfix, signals=signals_ar_reference)#,
   # production_forecaster_nochng = list(forecaster=production_forecaster_nochng, signals=signals_ar_nochng),
   # production_forecaster_nowindow_latencyfix_nochng = list(forecaster=production_forecaster_nowindow_latencyfix_nochng, signals=signals_ar_nochng)
