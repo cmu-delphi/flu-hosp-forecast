@@ -190,7 +190,7 @@ preds_full = bind_rows(preds_state_processed, preds_us) %>% arrange(
   # forming the national predictions above.)
   filter(.data$geo_value != "vi") 
   # Prod run exclude geos
-  # filter(!.data$geo_value %in% c("hi", "ga", "fl", "la", "sc", "va", "tx", "al"))
+  # filter(!.data$geo_value %in% c("ca", "id", "tx", "mn", "md", "nc", "sc", "la", "ms"))
 
 readr::write_csv(preds_full,
                  sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries-prediction-cards.csv', forecast_dates),
