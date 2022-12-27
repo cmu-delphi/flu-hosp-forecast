@@ -146,3 +146,71 @@ approx_cdf_from_quantiles = function(quantiles, probs) {
   cdf.ys.before = `[<-`(probs[cdf.ys.before.inds], 1L, 0)
   approx_cdf(cdf.xs, cdf.ys.before, cdf.ys.at)
 }
+
+# probability <= result.xs
+p_le = function(dist, request.xs) {
+  stopifnot(inherits(dist, "approx_cdf"))
+  stopifnot(all(diff(request.xs) > 0))
+
+  old.unclassed = unclass(dist)
+  old.xs = old.unclassed[["xs"]]
+  result.xs = unique(sort(c(old.xs, request.xs)))
+  old.ys.before = old.unclassed[["ys.before"]]
+  old.ys.at = old.unclassed[["ys.at"]]
+  old.y.jumps = old.ys.at - old.ys.before
+  old.jumpless.ys = old.ys.at - cumsum(old.y.jumps)
+  new.y.jumps = `[<-`(rep(0, length(result.xs)),
+                               match(old.xs, result.xs),
+                               old.y.jumps)
+  ## TODO store a rule in the approx_cdf?
+  new.jumpless.ys = (
+    if (length(old.xs) == 1L) {
+      # (This means this component is a degenerate distribution with 1 jump,
+      # no slopes; this breaks `approx` which expects to be able to do some
+      # sort of interpolation, so special-case it here.)
+      rep(0, length(result.xs))
+    } else {
+      approx(old.xs, old.jumpless.ys, result.xs, rule=2L)[["y"]]
+    }
+  )
+
+  (cumsum(new.y.jumps) + new.jumpless.ys)[match(request.xs, result.xs)]
+}
+
+# probability < result.xs
+p_lt = function(dist, request.xs) {
+  stopifnot(inherits(dist, "approx_cdf"))
+  stopifnot(all(diff(request.xs) > 0))
+
+  old.unclassed = unclass(dist)
+  old.xs = old.unclassed[["xs"]]
+  result.xs = unique(sort(c(old.xs, request.xs)))
+  old.ys.before = old.unclassed[["ys.before"]]
+  old.ys.at = old.unclassed[["ys.at"]]
+  old.y.jumps = old.ys.at - old.ys.before
+  old.jumpless.ys = old.ys.at - cumsum(old.y.jumps)
+  new.y.jumps = `[<-`(rep(0, length(result.xs)),
+                               match(old.xs, result.xs),
+                               old.y.jumps)
+  ## TODO store a rule in the approx_cdf?
+  new.jumpless.ys = (
+    if (length(old.xs) == 1L) {
+      # (This means this component is a degenerate distribution with 1 jump,
+      # no slopes; this breaks `approx` which expects to be able to do some
+      # sort of interpolation, so special-case it here.)
+      rep(0, length(result.xs))
+    } else {
+      approx(old.xs, old.jumpless.ys, result.xs, rule=2L)[["y"]]
+    }
+  )
+
+  (cumsum(new.y.jumps) - new.y.jumps + new.jumpless.ys)[match(request.xs, result.xs)]
+}
+
+p_ge = function(dist, request.xs) {
+  1 - p_lt(dist, request.xs)
+}
+
+p_gt = function(dist, request.xs) {
+  1 - p_le(dist, request.xs)
+}

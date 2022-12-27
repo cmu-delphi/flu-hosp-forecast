@@ -14,15 +14,6 @@ make_ensemble_forecaster = function(component_alternatives, offline_signal_dir) 
                         offline_signal_dir = offline_signal_dir)
       })
     component_predictions_cards %>%
-      ## form national predictions for each component
-      ##
-      ## TODO move this code somewhere other than the ensemble; doesn't quite belong here
-      bind_rows(
-        . %>>%
-          group_by(ahead, quantile, forecaster, forecast_date, data_source, signal, target_end_date, incidence_period) %>>%
-          summarize(value = sum(value, na.rm = TRUE), .groups = "drop") %>>%
-          mutate(geo_value = "us")
-      ) %>>%
       ## standardize quantile levels between components (some issues with
       ## floating-point values being slightly different):
       mutate(quantile = round(quantile, 5L)) %>>%

@@ -13,10 +13,11 @@ source('ensemble.R')
 forecast_dates <- seq(
   # a Monday at/after we've had issues for both signals for 56 days:
   as.Date('2022-01-31'),
-  # end bound from `make_common_params.py` on 2022-10-17:
-  Sys.Date() - 2L,
+  # Sys.Date() - 2L,
+  Sys.Date() - 1L,
   # only Mondays for now:
-  by = "week")
+  by = "week") %>%
+  tail(10L)
 stopifnot(all(as.POSIXlt(forecast_dates)$wday == 1L))
 
 # most recent date with settled/finalized as_of data, as of sometime on
