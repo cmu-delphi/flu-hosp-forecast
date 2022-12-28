@@ -171,7 +171,7 @@ if (!dir.exists(direction_predictions_dir)) {
 
 write_csv(
   direction_predictions,
-  file.path(direction_predictions_dir, paste0(forecast_date,"CMU-TimeSeries.csv")),
+  file.path(direction_predictions_dir, paste0(forecast_date,"-CMU-TimeSeries.csv")),
   # quote='all' is important to make sure the location column is quoted.
   quote="all"
 )
