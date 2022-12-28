@@ -129,7 +129,7 @@ direction_predictions =
   left_join(augmented_location_data, by="location") %>%
   left_join(latest_7d_counts, by="geo_value") %>%
   summarize(
-    type = "categorical",
+    type = "category",
     type_id = c("large_decrease", "decrease", "stable", "increase", "large_increase") %>% {factor(., levels=.)},
     value =
       {
