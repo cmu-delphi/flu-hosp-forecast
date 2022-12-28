@@ -94,11 +94,14 @@ short_snapshot =
     ) %>% as_tibble()
   )
 
-latest_7d_counts = short_snapshot %>%
+reference_7d_counts =
+  short_snapshot %>%
+  # reference by forecast Monday - 2L = Saturday, else whatever is soonest before then
+  filter(time_value <= forecast_date - 2L) %>%
   group_by(geo_value) %>%
   complete(time_value = full_seq(time_value, 1L)) %>%
   slice_max(time_value, n=7L) %>%
-  summarize(latest_7dcount = sum(value),
+  summarize(reference_7dcount = sum(value),
             time_value = max(time_value),
             .groups="drop")
 
@@ -124,20 +127,20 @@ direction_predictions =
     forecast = list(approx_cdf_from_quantiles(value, quantile)),
     .groups="keep"
   ) %>%
-  # left_join(latest_7d_counts, by="geo_value") %>%
+  # left_join(reference_7d_counts, by="geo_value") %>%
   # left_join(augmented_location_data, by="geo_value") %>%
   left_join(augmented_location_data, by="location") %>%
-  left_join(latest_7d_counts, by="geo_value") %>%
+  left_join(reference_7d_counts, by="geo_value") %>%
   summarize(
     type = "category",
     type_id = c("large_decrease", "decrease", "stable", "increase", "large_increase") %>% {factor(., levels=.)},
     value =
       {
         stopifnot(length(forecast) == 1L)
-        p_large_dec = p_le(forecast[[1L]], latest_7dcount - large_change_count_thresh)
-        p_large_or_nonlarge_dec = p_le(forecast[[1L]], latest_7dcount - nonlarge_change_count_thresh)
-        p_large_or_nonlarge_inc = p_ge(forecast[[1L]], latest_7dcount + nonlarge_change_count_thresh)
-        p_large_inc = p_ge(forecast[[1L]], latest_7dcount + large_change_count_thresh)
+        p_large_dec = p_le(forecast[[1L]], reference_7dcount - large_change_count_thresh)
+        p_large_or_nonlarge_dec = p_le(forecast[[1L]], reference_7dcount - nonlarge_change_count_thresh)
+        p_large_or_nonlarge_inc = p_ge(forecast[[1L]], reference_7dcount + nonlarge_change_count_thresh)
+        p_large_inc = p_ge(forecast[[1L]], reference_7dcount + large_change_count_thresh)
         result = c(p_large_dec,
           p_large_or_nonlarge_dec - p_large_dec,
           1 - p_large_or_nonlarge_dec - p_large_or_nonlarge_inc,
