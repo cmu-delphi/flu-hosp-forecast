@@ -158,9 +158,24 @@ direction_predictions =
   mutate(target = "2 wk flu hosp rate change") %>%
   select(forecast_date, target, location, type, type_id, value)
 
+if (Sys.Date() != as.Date("2022-12-27")) stop("need to update exclusions")
+excluded_locations =
+  c(
+    augmented_location_data %>%
+      filter(geo_value == "vi") %>%
+      pull(location),
+    # week-to-week exclusions:
+    augmented_location_data %>%
+      filter(geo_value %in% c("me")) %>%
+      pull(location)
+  )
+
+filtered_direction_predictions = direction_predictions %>%
+  filter(! location %in% excluded_locations)
+
 stopifnot(
   all(abs(1 -
-            direction_predictions %>%
+            filtered_direction_predictions %>%
             group_by(forecast_date, target, location) %>%
             summarize(value = sum(value)) %>%
             pull(value)
@@ -173,7 +188,7 @@ if (!dir.exists(direction_predictions_dir)) {
 }
 
 write_csv(
-  direction_predictions,
+  filtered_direction_predictions,
   file.path(direction_predictions_dir, paste0(forecast_date,"-CMU-TimeSeries.csv")),
   # quote='all' is important to make sure the location column is quoted.
   quote="all"
