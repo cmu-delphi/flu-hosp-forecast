@@ -154,6 +154,12 @@ preds_state_processed = preds_state %>% inner_join (
       value=value*pop/INCIDENCE_RATE*7,
     )
 
+# Add geos you want excluded from state AND national-level forecasts here.
+exclude_geos = c("")
+preds_state_processed = preds_state_processed %>% filter (
+      !geo_value %in% exclude_geos,
+    )
+
 # US-level forecasts
 preds_us_unsorted = preds_state_processed %>% group_by (
       forecast_date,
@@ -182,15 +188,14 @@ preds_us$forecaster <- "flu-model"
 preds_us$incidence_period <- "day"
 preds_us$geo_value <- "us"
 
-preds_full = bind_rows(preds_state_processed, preds_us) %>% arrange(
-      location,
-  ) %>%
-  # Remove VI as data has just been zeroes and forecaster time window leads to
-  # following trends from other locations and doesn't cover 0. (But keep it when
-  # forming the national predictions above.)
-  filter(.data$geo_value != "vi") 
-  # Prod run exclude geos
-  # filter(!.data$geo_value %in% c("ca", "id", "tx", "mn", "md", "nc", "sc", "la", "ms"))
+# VI removed as data has just been zeroes and forecaster time window leads to
+# following trends from other locations and doesn't cover 0.
+# Add geos you want excluded from state, but not national-level forecasts here.
+exclude_geos = c("vi")
+
+preds_full = bind_rows(preds_state_processed, preds_us) %>% 
+  arrange(location) %>%
+  filter(!.data$geo_value %in% exclude_geos)
 
 readr::write_csv(preds_full,
                  sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries-prediction-cards.csv', forecast_dates),
