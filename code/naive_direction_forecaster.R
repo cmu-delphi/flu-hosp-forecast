@@ -46,8 +46,8 @@ nonevaluated_locations = c("60","66","69","78")
 # preds = read_csv("~/Downloads/2022-12-19-CMU-TimeSeries.csv", col_types=cols(location=col_character()))
 # forecast_date = Sys.Date()
 # short_snapshot = covidcast("hhs", "confirmed_admissions_influenza_1d", "day", "state", epirange(as.integer(format(Sys.Date()-20L, "%Y%m%d")), as.integer(format(Sys.Date(), "%Y%m%d"))), "*", as_of=as.integer(format(Sys.Date(),"%Y%m%d"))) %>% fetch_tbl() # FIXME * 7?
-if (Sys.Date() != as.Date("2022-12-27")) stop("need to update dates")
-forecast_date = as.Date("2022-12-26")
+if (Sys.Date() != as.Date("2023-01-03")) stop("need to update dates")
+forecast_date = as.Date("2023-01-02")
 
 preds_state_prop_7dav = readRDS(here::here("cache","forecasts","ens1",paste0(forecast_date,".RDS"))) %>%
   {
@@ -115,7 +115,7 @@ uniform.forecaster.weight = 3/(
    10
 )
 
-direction_predictions =
+unfiltered_direction_predictions =
   preds_full %>%
   # filter(! geo_value %in% .env$nonevaluated_geo_values) %>%
   # filter(ahead == 7L*2L - 2L) %>%
@@ -158,7 +158,19 @@ direction_predictions =
   mutate(target = "2 wk flu hosp rate change") %>%
   select(forecast_date, target, location, type, type_id, value)
 
-if (Sys.Date() != as.Date("2022-12-27")) stop("need to update exclusions")
+direction_predictions_dir = here::here("code","data-forecasts","direction-predictions")
+if (!dir.exists(direction_predictions_dir)) {
+  dir.create(direction_predictions_dir, recursive=TRUE)
+}
+
+write_csv(
+  unfiltered_direction_predictions,
+  file.path(direction_predictions_dir, paste0("prefilter-",forecast_date,"-CMU-TimeSeries.csv")),
+  # quote='all' is important to make sure the location column is quoted.
+  quote="all"
+)
+
+if (Sys.Date() != as.Date("2023-01-03")) stop("need to update exclusions")
 excluded_locations =
   c(
     augmented_location_data %>%
@@ -166,11 +178,11 @@ excluded_locations =
       pull(location),
     # week-to-week exclusions:
     augmented_location_data %>%
-      filter(geo_value %in% c("me")) %>%
+      filter(geo_value %in% c("az", "ct", "me", "nh", "nv", "wa")) %>%
       pull(location)
   )
 
-filtered_direction_predictions = direction_predictions %>%
+filtered_direction_predictions = unfiltered_direction_predictions %>%
   filter(! location %in% excluded_locations)
 
 stopifnot(
@@ -181,11 +193,6 @@ stopifnot(
             pull(value)
           ) < 1e-8)
 )
-
-direction_predictions_dir = here::here("code","data-forecasts","direction-predictions")
-if (!dir.exists(direction_predictions_dir)) {
-  dir.create(direction_predictions_dir, recursive=TRUE)
-}
 
 write_csv(
   filtered_direction_predictions,
