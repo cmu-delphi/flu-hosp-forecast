@@ -46,8 +46,8 @@ nonevaluated_locations = c("60","66","69","78")
 # preds = read_csv("~/Downloads/2022-12-19-CMU-TimeSeries.csv", col_types=cols(location=col_character()))
 # forecast_date = Sys.Date()
 # short_snapshot = covidcast("hhs", "confirmed_admissions_influenza_1d", "day", "state", epirange(as.integer(format(Sys.Date()-20L, "%Y%m%d")), as.integer(format(Sys.Date(), "%Y%m%d"))), "*", as_of=as.integer(format(Sys.Date(),"%Y%m%d"))) %>% fetch_tbl() # FIXME * 7?
-if (Sys.Date() != as.Date("2023-01-03")) stop("need to update dates")
-forecast_date = as.Date("2023-01-02")
+if (Sys.Date() != as.Date("2023-01-09")) stop("need to update dates")
+forecast_date = as.Date("2023-01-09")
 
 preds_state_prop_7dav = readRDS(here::here("cache","forecasts","ens1",paste0(forecast_date,".RDS"))) %>%
   {
@@ -170,7 +170,7 @@ write_csv(
   quote="all"
 )
 
-if (Sys.Date() != as.Date("2023-01-03")) stop("need to update exclusions")
+if (Sys.Date() != as.Date("2023-01-09")) stop("need to update exclusions")
 excluded_locations =
   c(
     augmented_location_data %>%
@@ -178,7 +178,7 @@ excluded_locations =
       pull(location),
     # week-to-week exclusions:
     augmented_location_data %>%
-      filter(geo_value %in% c("az", "ct", "me", "nh", "nv", "wa")) %>%
+      filter(geo_value %in% c("ia", "id", "in", "ky", "me", "mi", "nm", "oh", "ok", "or", "wv")) %>%
       pull(location)
   )
 

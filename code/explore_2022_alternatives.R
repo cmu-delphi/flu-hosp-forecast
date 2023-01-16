@@ -14,15 +14,18 @@ forecast_dates <- seq(
   # a Monday at/after we've had issues for both signals for 56 days:
   as.Date('2022-01-31'),
   # Sys.Date() - 2L,
-  Sys.Date() - 1L,
+  # Sys.Date() - 1L,
+  # FIXME we normally don't use versions this recent as exploration forecast dates as they are still unstable and make the analysis not as reproducible (although this might allow them to be more similar to production forecasts if there are changes)
+  Sys.Date() - 0L,
   # only Mondays for now:
   by = "week") %>%
-  tail(10L)
+  tail(1L)
 stopifnot(all(as.POSIXlt(forecast_dates)$wday == 1L))
 
 # most recent date with settled/finalized as_of data, as of sometime on
 # 2022-10-17, is 2022-10-16 (unless there are replication hiccups):
 eval_date <- Sys.Date() - 1L
+# eval_date <- Sys.Date()
 geo_type <- 'state'
 response_data_source = 'hhs'
 response_signal = 'confirmed_admissions_influenza_1d_prop_7dav'
@@ -35,7 +38,9 @@ states_dc_pr_vi = c('al', 'ak', 'az', 'ar', 'ca', 'co', 'ct', 'dc', 'de', 'fl',
                     'nj', 'nm', 'ny', 'nc', 'nd', 'oh', 'ok', 'or', 'pa', 'ri',
                     'sc', 'sd', 'tn', 'tx', 'ut', 'vt', 'va', 'wa', 'wv', 'wi',
                     'wy', 'pr', 'vi')
-offline_signal_dir <- here::here(paste0("cache/", "exploration", "/signals"))
+base_offline_signal_dir <- here::here(paste0("cache/", "exploration", "/signals"))
+forecaster_offline_signal_dir = file.path(base_offline_signal_dir, "for-forecasters")
+evaluation_offline_signal_dir = file.path(base_offline_signal_dir, "for-evaluation")
 forecast_cache_dir <- here::here("cache/forecasts")
 
 make_start_day_ar = function(ahead, ntrain, lags) {
@@ -195,7 +200,7 @@ production_forecaster_alternatives = list(
      list(
        ens1 = list(
          forecaster = make_ensemble_forecaster(list(.$production_forecaster_reference, .$production_forecaster_nowindow_latencyfix),
-                                               offline_signal_dir = offline_signal_dir),
+                                               offline_signal_dir = forecaster_offline_signal_dir),
          signals = signals_ar_reference # dummy to satisfy framework
        )
      ) %>%
@@ -229,7 +234,7 @@ exploration_preds_state_by_forecaster_quantgen =
                     forecast_dates,
                     incidence_period='day',
                     forecaster_args=list(),
-                    offline_signal_dir = offline_signal_dir)
+                    offline_signal_dir = forecaster_offline_signal_dir)
   })
 
 ntrain_reference_baseline = 28
@@ -262,7 +267,7 @@ exploration_preds_state_baseline =
                   forecaster_args=list(
                     incidence_period='day',
                     ahead=ahead),
-                  offline_signal_dir = offline_signal_dir)
+                  offline_signal_dir = forecaster_offline_signal_dir)
 
 eval_state_snapshot =
   evalcast::download_signal(
@@ -273,7 +278,7 @@ eval_state_snapshot =
     geo_type = "state",
     geo_values = "*",
     as_of = eval_date,
-    offline_signal_dir = offline_signal_dir
+    offline_signal_dir = evaluation_offline_signal_dir
   )
 
 eval_state_actuals = eval_state_snapshot %>%
