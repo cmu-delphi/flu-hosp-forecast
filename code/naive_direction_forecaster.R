@@ -46,10 +46,20 @@ nonevaluated_locations = c("60","66","69","78")
 # preds = read_csv("~/Downloads/2022-12-19-CMU-TimeSeries.csv", col_types=cols(location=col_character()))
 # forecast_date = Sys.Date()
 # short_snapshot = covidcast("hhs", "confirmed_admissions_influenza_1d", "day", "state", epirange(as.integer(format(Sys.Date()-20L, "%Y%m%d")), as.integer(format(Sys.Date(), "%Y%m%d"))), "*", as_of=as.integer(format(Sys.Date(),"%Y%m%d"))) %>% fetch_tbl() # FIXME * 7?
-if (Sys.Date() != as.Date("2023-01-09")) stop("need to update dates")
-forecast_date = as.Date("2023-01-09")
+if (Sys.Date() != as.Date("2023-01-17")) stop("need to update dates")
+# Set the `nominal_forecast_date` and the `forecast_as_of_date`. The
+# `nominal_forecast_date` determines what the output files should be named and
+# what the forecast target(_end_date)s are. The `forecast_as_of_date` determines
+# (through) what `as_of` we can use to prepare the forecast.
+nominal_forecast_date = as.Date("2023-01-16")
+stopifnot(as.POSIXlt(nominal_forecast_date)$wday == 1L) # Monday
+forecast_as_of_date = nominal_forecast_date + 1L # Tuesday
 
-preds_state_prop_7dav = readRDS(here::here("cache","forecasts","ens1",paste0(forecast_date,".RDS"))) %>%
+# Also record the forecast generation date (extra metadata / to make sure we
+# don't clobber things if we want to compare real-time vs. as-of).
+forecast_generation_date = Sys.Date()
+
+preds_state_prop_7dav = readRDS(here::here("cache","forecasts","ens1",paste0(nominal_forecast_date,".RDS"))) %>%
   {
     out = .
     # evalcast post-processing:
@@ -57,7 +67,7 @@ preds_state_prop_7dav = readRDS(here::here("cache","forecasts","ens1",paste0(for
                 msg = paste("Your forecaster must return a data frame with",
                             "(at least) the columnns `ahead`, `geo_value`,",
                             "`quantile`, and `value`."))
-    out$forecast_date <- forecast_date
+    out$forecast_date <- nominal_forecast_date
     names(out$value) <- NULL
     out <- out %>%
       mutate(
@@ -80,16 +90,16 @@ short_snapshot =
   bind_rows(
     evalcast::download_signal(
       "hhs", "confirmed_admissions_influenza_1d",
-      forecast_date-20L, forecast_date,
+      nominal_forecast_date-20L, nominal_forecast_date,
       "state", "*",
-      as_of = forecast_date,
+      as_of = forecast_as_of_date,
       offline_signal_dir = here::here("cache","short_signals_for_direction")
     ) %>% as_tibble(),
     evalcast::download_signal(
       "hhs", "confirmed_admissions_influenza_1d",
-      forecast_date-20L, forecast_date,
+      nominal_forecast_date-20L, nominal_forecast_date,
       "nation", "*",
-      as_of = forecast_date,
+      as_of = forecast_as_of_date,
       offline_signal_dir = here::here("cache","short_signals_for_direction")
     ) %>% as_tibble()
   )
@@ -97,7 +107,7 @@ short_snapshot =
 reference_7d_counts =
   short_snapshot %>%
   # reference by forecast Monday - 2L = Saturday, else whatever is soonest before then
-  filter(time_value <= forecast_date - 2L) %>%
+  filter(time_value <= nominal_forecast_date - 2L) %>%
   group_by(geo_value) %>%
   complete(time_value = full_seq(time_value, 1L)) %>%
   slice_max(time_value, n=7L) %>%
@@ -108,7 +118,7 @@ reference_7d_counts =
 # rule of three for probability of "novel behavior"; mixing weight for uniform
 uniform.forecaster.weight = 3/(
   # roughly, how many years of hhs influenza are available
-  as.numeric(forecast_date - as.Date("2020-10-16"))/(365+1/4-1/100+1/400) *
+  as.numeric(forecast_as_of_date - as.Date("2020-10-16"))/(365+1/4-1/100+1/400) *
     # say there's one wave/season per year
     1 *
     # say states from separate HHS Regions are "separate" enough to count as different data points, while those within the same region aren't separate enough; 10 HHS Regions = 10 buckets
@@ -158,14 +168,14 @@ unfiltered_direction_predictions =
   mutate(target = "2 wk flu hosp rate change") %>%
   select(forecast_date, target, location, type, type_id, value)
 
-direction_predictions_dir = here::here("code","data-forecasts","direction-predictions")
+direction_predictions_dir = here::here("code","data-forecasts","direction-predictions",paste0("generated-",forecast_generation_date,"-as-of-",forecast_as_of_date))
 if (!dir.exists(direction_predictions_dir)) {
   dir.create(direction_predictions_dir, recursive=TRUE)
 }
 
 write_csv(
   unfiltered_direction_predictions,
-  file.path(direction_predictions_dir, paste0("prefilter-",forecast_date,"-CMU-TimeSeries.csv")),
+  file.path(direction_predictions_dir, paste0("prefilter-",nominal_forecast_date,"-CMU-TimeSeries.csv")),
   # quote='all' is important to make sure the location column is quoted.
   quote="all"
 )
@@ -196,7 +206,7 @@ stopifnot(
 
 write_csv(
   filtered_direction_predictions,
-  file.path(direction_predictions_dir, paste0(forecast_date,"-CMU-TimeSeries.csv")),
+  file.path(direction_predictions_dir, paste0(nominal_forecast_date,"-CMU-TimeSeries.csv")),
   # quote='all' is important to make sure the location column is quoted.
   quote="all"
 )
