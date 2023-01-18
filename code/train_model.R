@@ -16,7 +16,7 @@ source('process-state-preds.R')
 geo_type <- 'state'
 response_data_source = 'hhs'
 response_signal = 'confirmed_admissions_influenza_1d_prop_7dav'
-ahead = 5 + 7*(0:3)
+ahead = 4 + 7*(0:3)
 ntrain_reference = 21
 ntrain_nowindow = 20L * 365L
 lags = c(0, 7, 14)
@@ -31,13 +31,14 @@ forecast_dates = lubridate::today()
 cache_dir <- Sys.getenv("FLU_CACHE", "exploration")
 offline_signal_dir <- here::here(paste0("cache/", cache_dir, "/signals"))
 
-if (strftime(forecast_dates, '%w') != '1') {
-  warning('Forecaster being run on a day that is not a Monday. ',
-          'The forecaster assumes that it is being run on Monday ',
+if (strftime(forecast_dates, '%w') != '2') {
+  warning('Forecaster being run on a day that is not a Tuesday. ',
+          'The forecaster assumes that it is being run on Tuesday ',
           'in which aheads are predicted.')
 }
 
 make_start_day_ar = function(ahead, ntrain, lags) {
+  # NOTE: Why eval?
   offset = eval(1 - max(ahead) - ntrain - max(lags))
   start_day_ar = function(forecast_date) {
     return(as.Date(forecast_date) + offset)
@@ -127,16 +128,19 @@ t1 = Sys.time()
 print(t1-t0)
 
 preds_full = get_preds_full(preds_state)
+preds_full$forecast_date = forecast_dates - 1
 
+# NOTE: While we make predictions on Tuesday, we want to label the file with a Monday, hence the -1.
 readr::write_csv(preds_full,
-                 sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries-prediction-cards.csv', forecast_dates),
+                 sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries-prediction-cards.csv', forecast_dates - 1),
                  # quote='all' is important to make sure the location column is quoted.
                  quote='all')
 
 drops <- c("incidence_period", "geo_value", "ahead", "forecaster", "data_source", "signal")
 preds_full <- preds_full[, !(names(preds_full) %in% drops)]
 
+# NOTE: While we make predictions on Tuesday, we want to label the file with a Monday, hence the -1.
 readr::write_csv(preds_full,
-                 sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries.csv', forecast_dates),
+                 sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries.csv', forecast_dates - 1),
                  # quote='all' is important to make sure the location column is quoted.
                  quote='all')

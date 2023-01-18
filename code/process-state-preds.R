@@ -5,7 +5,11 @@ state_pop = readr::read_csv(here::here("code","state_pop.csv"), show_col_types =
     -state_name,
     )
 
-INCIDENCE_RATE = 100000
+INCIDENCE_RATE <- 100000
+# VI data has been just zeroes for a long time, so we exclude it.
+# Add extra states to this list if needed.
+# They will be included in the national forecast, but not in the state-level forecast.
+exclude_geos <- c("vi", "ca", "id", "in", "ky", "ma", "me", "mi", "nm", "or", "wv")
 
 
 get_preds_full = function(preds_state) {
@@ -23,7 +27,7 @@ get_preds_full = function(preds_state) {
       signal = "confirmed_admissions_influenza_1d_7dav",
       incidence_period = "day",
       forecast_date = forecast_date,
-      target = sprintf('%d wk ahead inc flu hosp', (ahead-5)/7+1),
+      target = sprintf("%d wk ahead inc flu hosp", (ahead - 4) / 7 + 1),
       target_end_date = target_end_date,
       location=state_code,
       type='quantile',
@@ -59,13 +63,9 @@ get_preds_full = function(preds_state) {
   preds_us$incidence_period <- "day"
   preds_us$geo_value <- "us"
 
-  preds_full = bind_rows(preds_state_processed, preds_us) %>% arrange(
-    location,
-    ) %>%
-    # Remove VI as data has just been zeroes and forecaster time window leads to
-    # following trends from other locations and doesn't cover 0. (But keep it when
-    # forming the national predictions above.)
-    filter(.data$geo_value != "vi") 
-  # Prod run exclude geos
-  # filter(!.data$geo_value %in% c("hi", "ga", "fl", "la", "sc", "va", "tx", "al"))
+  preds_full <- bind_rows(preds_state_processed, preds_us) %>%
+    arrange(location) %>%
+    filter(.data$geo_value %in% exclude_geos == FALSE)
+
+  return(preds_full)
 }
