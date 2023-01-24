@@ -47,19 +47,21 @@ nonevaluated_locations = c("60","66","69","78")
 # forecast_date = Sys.Date()
 # short_snapshot = covidcast("hhs", "confirmed_admissions_influenza_1d", "day", "state", epirange(as.integer(format(Sys.Date()-20L, "%Y%m%d")), as.integer(format(Sys.Date(), "%Y%m%d"))), "*", as_of=as.integer(format(Sys.Date(),"%Y%m%d"))) %>% fetch_tbl() # FIXME * 7?
 if (Sys.Date() != as.Date("2023-01-17")) stop("need to update dates")
+
 # Set the `nominal_forecast_date` and the `forecast_as_of_date`. The
 # `nominal_forecast_date` determines what the output files should be named and
 # what the forecast target(_end_date)s are. The `forecast_as_of_date` determines
 # (through) what `as_of` we can use to prepare the forecast.
 nominal_forecast_date = as.Date("2023-01-16")
 stopifnot(as.POSIXlt(nominal_forecast_date)$wday == 1L) # Monday
-forecast_as_of_date = nominal_forecast_date + 1L # Tuesday
+forecast_as_of_date = nominal_forecast_date + 1L
+stopifnot(as.POSIXlt(forecast_as_of_date)$wday == 2L) # Tuesday
 
 # Also record the forecast generation date (extra metadata / to make sure we
 # don't clobber things if we want to compare real-time vs. as-of).
 forecast_generation_date = Sys.Date()
 
-preds_state_prop_7dav = readRDS(here::here("cache","forecasts","ens1",paste0(nominal_forecast_date,".RDS"))) %>%
+preds_state_prop_7dav = readRDS(here::here("cache","tuesday-forecasts","ens1",paste0(forecast_as_of_date,".RDS"))) %>%
   {
     out = .
     # evalcast post-processing:
@@ -180,7 +182,7 @@ write_csv(
   quote="all"
 )
 
-if (Sys.Date() != as.Date("2023-01-09")) stop("need to update exclusions")
+if (Sys.Date() != as.Date("2023-01-17")) stop("need to update exclusions")
 excluded_locations =
   c(
     augmented_location_data %>%
@@ -188,9 +190,10 @@ excluded_locations =
       pull(location),
     # week-to-week exclusions:
     augmented_location_data %>%
-      filter(geo_value %in% c("ia", "id", "in", "ky", "me", "mi", "nm", "oh", "ok", "or", "wv")) %>%
+      filter(geo_value %in% c("ca", "id", "in", "ky", "ma", "me", "mi", "nm", "or", "wv")) %>%
       pull(location)
   )
+# TODO validate week-to-week exclusions aren't misspelled
 
 filtered_direction_predictions = unfiltered_direction_predictions %>%
   filter(! location %in% excluded_locations)
