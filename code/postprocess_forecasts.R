@@ -1,16 +1,20 @@
+library(dplyr)
+library(magrittr)
 
+INCIDENCE_RATE <- 100000
+# NOTE: VI data has been just zeroes for a long time, so we exclude it.
+# Add extra states to this list if needed.
+# They will be included in the national forecast, but not in the state-level forecast.
+exclude_geos <- tolower(c("vi"))
+# NOTE: While we make predictions on Tuesday, we want to label the file with a Monday, hence the -1's below.
+forecast_dates <- lubridate::today()
+
+# Load state population data
 state_pop = readr::read_csv(here::here("code","state_pop.csv"), show_col_types = FALSE) %>% rename (
   geo_value=state_id,
   ) %>% select (
     -state_name,
     )
-
-INCIDENCE_RATE <- 100000
-# VI data has been just zeroes for a long time, so we exclude it.
-# Add extra states to this list if needed.
-# They will be included in the national forecast, but not in the state-level forecast.
-exclude_geos <- c("vi", "ca", "id", "in", "ky", "ma", "me", "mi", "nm", "or", "wv")
-
 
 get_preds_full = function(preds_state) {
   preds_state$quantile = signif(preds_state$quantile, 4) # Eliminate rounding issues
@@ -69,3 +73,21 @@ get_preds_full = function(preds_state) {
 
   return(preds_full)
 }
+
+preds_state <- readr::read_csv(
+    sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries-prediction-full.csv', forecast_dates - 1),
+)
+preds_full <- get_preds_full(preds_state)
+
+readr::write_csv(preds_full,
+                 sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries-prediction-cards.csv', forecast_dates - 1),
+                 # quote='all' is important to make sure the location column is quoted.
+                 quote='all')
+
+drops <- c("incidence_period", "geo_value", "ahead", "forecaster", "data_source", "signal")
+preds_full <- preds_full[, !(names(preds_full) %in% drops)]
+
+readr::write_csv(preds_full,
+                 sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries.csv', forecast_dates - 1),
+                 # quote='all' is important to make sure the location column is quoted.
+                 quote='all')
