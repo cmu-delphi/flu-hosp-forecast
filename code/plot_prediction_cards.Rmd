@@ -23,7 +23,7 @@ source("plotting.R")
 exclude_geos <- character(0L)
 cache_dir <- Sys.getenv("FLU_CACHE", "exploration")
 offline_signal_dir <- here::here(paste0("cache/", cache_dir, "/signals"))
-forecast_date <- Sys.Date()
+forecast_date <- Sys.Date() - 1
 
 plot_state_forecasters_ <- function(df) {
   plot_state_forecasters(df %>% filter(geo_value != "us"), exclude_geos = exclude_geos, start_day = "2022-01-01", ncol = 2, offline_signal_dir = offline_signal_dir) %>% suppressMessages() %>% suppressWarnings()
