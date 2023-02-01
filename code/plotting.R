@@ -1,3 +1,10 @@
+library(dplyr)
+library(evalcast)
+library(ggplot2)
+library(magrittr)
+library(readr)
+library(tidyr)
+
 #### BEGIN copied/adapted content from cmu-delphi/hospitalization-forecaster
 #### production-scripts/plotting.R as of 2022-10-17
 
@@ -100,10 +107,23 @@ plot_points <- function(g, points_df) {
 plot_state_forecasters <- function(predictions_cards, exclude_geos = c(), start_day = NULL, ncol = 5, offline_signal_dir = NULL) {
   if (nrow(predictions_cards) == 0) return(NULL)
 
-  td1 <- get_truth_data(exclude_geos = exclude_geos, data_source = "hhs", signal = "confirmed_admissions_influenza_1d_7dav", start_day = start_day, geo_type = "state", offline_signal_dir = offline_signal_dir) %>%
-    mutate(value = 7L * .data$value)
+  td1 <- get_truth_data(
+    exclude_geos = exclude_geos,
+    data_source = "hhs",
+    signal = "confirmed_admissions_influenza_1d_7dav",
+    start_day = start_day,
+    geo_type = "state",
+    offline_signal_dir = offline_signal_dir
+  ) %>% mutate(value = 7L * .data$value)
   td1$data_source <- "hhs"
-  td2 <- get_truth_data(exclude_geos = exclude_geos, data_source = "chng", signal = "smoothed_adj_outpatient_flu", start_day = start_day, geo_type = "state", offline_signal_dir = offline_signal_dir)
+  td2 <- get_truth_data(
+    exclude_geos = exclude_geos,
+    data_source = "chng",
+    signal = "smoothed_adj_outpatient_flu",
+    start_day = start_day,
+    geo_type = "state",
+    offline_signal_dir = offline_signal_dir
+  )
   td2$data_source <- "chng"
   td1.max <- td1 %>%
     group_by(geo_value) %>%
@@ -142,8 +162,14 @@ plot_state_forecasters <- function(predictions_cards, exclude_geos = c(), start_
 plot_nation_forecasters <- function(predictions_cards, exclude_geos = c(), start_day = NULL, ncol = 5, offline_signal_dir = NULL) {
   if (nrow(predictions_cards) == 0) return(NULL)
 
-  td1 <- get_truth_data(exclude_geos = exclude_geos, data_source = "hhs", signal = "confirmed_admissions_influenza_1d_7dav", start_day = start_day, geo_type = "nation", offline_signal_dir = offline_signal_dir) %>%
-    mutate(value = 7L * .data$value)
+  td1 <- get_truth_data(
+    exclude_geos = exclude_geos,
+    data_source = "hhs",
+    signal = "confirmed_admissions_influenza_1d_7dav",
+    start_day = start_day,
+    geo_type = "nation",
+    offline_signal_dir = offline_signal_dir
+  ) %>% mutate(value = 7L * .data$value)
   td1$data_source <- "hhs"
   td2 <- get_truth_data(exclude_geos = exclude_geos, data_source = "chng", signal = "smoothed_adj_outpatient_flu", start_day = start_day, geo_type = "nation", offline_signal_dir = offline_signal_dir)
   td2$data_source <- "chng"
@@ -176,3 +202,66 @@ plot_nation_forecasters <- function(predictions_cards, exclude_geos = c(), start
 }
 
 #### END copied/adapted content
+
+# This is copied and adapter from evalcast/R/predictions_processing_utils.R
+process_target <- function(predictions, remove) {
+  unique_targets <- predictions %>%
+    distinct(.data$target) %>%
+    separate(.data$target,
+             into = c("ahead", "incidence_period", NA, "inc", NA, "response"),
+             remove = FALSE, sep = " ") %>%
+    mutate(incidence_period = if_else(
+      .data$incidence_period == "wk", "epiweek", "day"),
+      inc = if_else(.data$inc == "inc", "incidence", "cumulative"),
+      response = case_when(.data$response == "death" ~ "deaths",
+                           .data$response == "case" ~ "confirmed",
+                           .data$response == "hosp" ~ "hosp",
+                           TRUE ~ "drop"),
+      data_source = case_when(.data$response == "deaths" ~ "jhu-csse",
+                              .data$response == "confirmed" ~ "jhu-csse",
+                              .data$response == "hosp" ~ "hhs",
+                              TRUE ~ "drop"),
+      signal = case_when(
+        .data$data_source == "jhu-csse" ~ paste(.data$response, .data$inc, "num", sep="_"),
+        .data$data_source == "hhs" & .data$inc == "incidence" ~ "confirmed_admissions_covid_1d",
+        TRUE ~ "drop"),
+      ahead = as.integer(.data$ahead))
+  predictions <- predictions %>% 
+    left_join(unique_targets, by = "target")
+  if (remove)
+    return(predictions %>% select(-target))
+  else
+    return(predictions)
+}
+
+
+# This is copied and adapted from evalcast/R/get_predictions.R
+get_forecaster_predictions <- function(forecast_date = NULL,
+                                       ahead = 1:4
+) {
+  if (is.null(forecast_date)) {
+    forecast_date <- Sys.Date() - 7
+  }
+  predictions_file <- sprintf("https://raw.githubusercontent.com/cdcepi/Flusight-forecast-data/master/data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries.csv", forecast_date)
+  df <- read_csv(predictions_file, col_types = cols(
+      .default = col_character(),
+      forecast_date = col_date(format = "%Y-%m-%d"),
+      target_end_date = col_date(format = "%Y-%m-%d"),
+      location = col_character(),
+      type = col_character(),
+      quantile = col_double(),
+      value = col_double(),
+    ),
+    na = c("\"NA\"", "NA")
+  )
+
+  df <- df %>%
+      process_target(remove = TRUE) %>%
+      mutate(forecaster = "CMU-TimeSeries") %>%
+      evalcast:::filter_predictions(c("point", "quantile"), c("epiweek", "day"), "confirmed_admissions_covid_1d") %>%
+      evalcast:::select_pcard_cols() %>%
+      evalcast:::location_2_geo_value()
+
+  class(df) <- c("predictions_cards", class(df))
+  df
+}
