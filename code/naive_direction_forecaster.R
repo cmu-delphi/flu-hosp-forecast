@@ -46,20 +46,21 @@ nonevaluated_locations = c("60","66","69","78")
 # preds = read_csv("~/Downloads/2022-12-19-CMU-TimeSeries.csv", col_types=cols(location=col_character()))
 # forecast_date = Sys.Date()
 # short_snapshot = covidcast("hhs", "confirmed_admissions_influenza_1d", "day", "state", epirange(as.integer(format(Sys.Date()-20L, "%Y%m%d")), as.integer(format(Sys.Date(), "%Y%m%d"))), "*", as_of=as.integer(format(Sys.Date(),"%Y%m%d"))) %>% fetch_tbl() # FIXME * 7?
-if (Sys.Date() != as.Date("2023-01-24")) stop("need to update dates")
+today = Sys.Date()
+if (today != as.Date("2023-01-31")) stop("need to check/update dates")
 
 # Set the `nominal_forecast_date` and the `forecast_as_of_date`. The
 # `nominal_forecast_date` determines what the output files should be named and
 # what the forecast target(_end_date)s are. The `forecast_as_of_date` determines
 # (through) what `as_of` we can use to prepare the forecast.
-nominal_forecast_date = as.Date("2023-01-23")
+nominal_forecast_date = today - 1L
 stopifnot(as.POSIXlt(nominal_forecast_date)$wday == 1L) # Monday
 forecast_as_of_date = nominal_forecast_date + 1L
 stopifnot(as.POSIXlt(forecast_as_of_date)$wday == 2L) # Tuesday
 
 # Also record the forecast generation date (extra metadata / to make sure we
 # don't clobber things if we want to compare real-time vs. as-of).
-forecast_generation_date = Sys.Date()
+forecast_generation_date = today
 
 preds_state_prop_7dav = readRDS(here::here("cache","tuesday-forecasts","ens1",paste0(forecast_as_of_date,".RDS"))) %>%
   {
@@ -182,7 +183,7 @@ write_csv(
   quote="all"
 )
 
-if (Sys.Date() != as.Date("2023-01-24")) stop("need to update exclusions")
+if (today != as.Date("2023-01-31")) stop("need to update exclusions")
 excluded_locations =
   c(
     augmented_location_data %>%
@@ -190,7 +191,7 @@ excluded_locations =
       pull(location),
     # week-to-week exclusions:
     augmented_location_data %>%
-      filter(geo_value %in% c("ar", "dc", "id", "in", "ks", "mi", "mt", "nd", "oh", "pr", "ri", "vt", "wv", "wy")) %>%
+      filter(geo_value %in% c("dc", "nd", "nh", "nv", "ri", "vt")) %>%
       pull(location)
   )
 # TODO validate week-to-week exclusions aren't misspelled
