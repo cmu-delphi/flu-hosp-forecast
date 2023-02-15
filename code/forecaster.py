@@ -12,7 +12,7 @@ def make_forecasts(production: bool = False):
     if production:
         os.environ["FLU_CACHE"] = "production"
 
-    subprocess.run("Rscript train_model.R", check=True)
+    subprocess.run(["Rscript", "train_model.R"], check=True)
 
 
 @app.command("postprocess")
@@ -21,7 +21,7 @@ def postprocess_forecasts(production: bool = False):
     if production:
         os.environ["FLU_CACHE"] = "production"
 
-    subprocess.run("Rscript postprocess_forecasts.R", check=True)
+    subprocess.run(["Rscript", "postprocess_forecasts.R"], check=True)
 
 
 @app.command("notebook")
@@ -30,7 +30,7 @@ def make_notebook(production: bool = False):
     if production:
         os.environ["FLU_CACHE"] = "production"
 
-    subprocess.run("Rscript render_prediction_cards.R", check=True)
+    subprocess.run(["Rscript", "render_prediction_cards.R"], check=True)
 
 
 if __name__ == "__main__":
