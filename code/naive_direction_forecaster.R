@@ -47,7 +47,7 @@ nonevaluated_locations = c("60","66","69","78")
 # forecast_date = Sys.Date()
 # short_snapshot = covidcast("hhs", "confirmed_admissions_influenza_1d", "day", "state", epirange(as.integer(format(Sys.Date()-20L, "%Y%m%d")), as.integer(format(Sys.Date(), "%Y%m%d"))), "*", as_of=as.integer(format(Sys.Date(),"%Y%m%d"))) %>% fetch_tbl() # FIXME * 7?
 today = Sys.Date()
-if (today != as.Date("2023-01-31")) stop("need to check/update dates")
+if (today != as.Date("2023-02-07")) stop("need to check/update dates")
 
 # Set the `nominal_forecast_date` and the `forecast_as_of_date`. The
 # `nominal_forecast_date` determines what the output files should be named and
@@ -183,15 +183,19 @@ write_csv(
   quote="all"
 )
 
-if (today != as.Date("2023-01-31")) stop("need to update exclusions")
+if (today != as.Date("2023-02-07")) stop("need to update week-to-week exclusions")
 excluded_locations =
   c(
+    # for now, always exclude VI (as, at time of last check, it was all zeros
+    # for months) (--- note that this exclusion should actually be redundant, as
+    # VI is a nonevaluated location):
     augmented_location_data %>%
       filter(geo_value == "vi") %>%
       pull(location),
-    # week-to-week exclusions:
+    # additional set of locations to exclude this run ("week-to-week"
+    # exclusions for this week):
     augmented_location_data %>%
-      filter(geo_value %in% c("dc", "nd", "nh", "nv", "ri", "vt")) %>%
+      filter(geo_value %in% rlang::chr()) %>%
       pull(location)
   )
 # TODO validate week-to-week exclusions aren't misspelled
