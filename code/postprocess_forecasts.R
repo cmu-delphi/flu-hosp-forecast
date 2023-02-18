@@ -7,7 +7,11 @@ INCIDENCE_RATE <- 100000
 # They will be included in the national forecast, but not in the state-level forecast.
 exclude_geos <- tolower(c("vi"))
 # NOTE: While we make predictions on Tuesday, we want to label the file with a Monday, hence the -1's below.
-forecast_dates <- lubridate::today()
+if (Sys.getenv("FORECAST_DATE", "") != "") {
+  forecast_dates <- as.Date(Sys.getenv("FORECAST_DATE"))
+} else {
+  forecast_dates <- lubridate::today()
+}
 
 # Load state population data
 state_pop = readr::read_csv(here::here("code","state_pop.csv"), show_col_types = FALSE) %>% rename (

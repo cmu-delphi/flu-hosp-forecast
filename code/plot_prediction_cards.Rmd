@@ -23,7 +23,11 @@ source("plotting.R")
 exclude_geos <- character(0L)
 cache_dir <- Sys.getenv("FLU_CACHE", "exploration")
 offline_signal_dir <- here::here(paste0("cache/", cache_dir, "/signals"))
-forecast_date <- Sys.Date() - 1
+if (Sys.getenv("FORECAST_DATE", "") != "") {
+  forecast_dates <- as.Date(Sys.getenv("FORECAST_DATE")) - 1
+} else {
+  forecast_dates <- lubridate::today() - 1
+}
 
 plot_state_forecasters_ <- function(df) {
   plot_state_forecasters(df %>% filter(geo_value != "us"), exclude_geos = exclude_geos, start_day = "2022-01-01", ncol = 2, offline_signal_dir = offline_signal_dir) %>% suppressMessages() %>% suppressWarnings()
@@ -68,7 +72,7 @@ plot_state_forecasters_(df %>% filter(forecast_date == prev_week)) %>% plotly::g
 ```{r, echo=FALSE, fig.height = 80, fig.width = 15}
 prev_week <- forecast_date - 14
 df <- get_forecaster_predictions(prev_week)
-plot_state_forecasters_(df %>% filter(forecast_date == prev_week))
+plot_state_forecasters_(df %>% filter(forecast_date == prev_week)) %>% plotly::ggplotly()
 ```
 
 ## Three Weeks Back
@@ -76,5 +80,5 @@ plot_state_forecasters_(df %>% filter(forecast_date == prev_week))
 ```{r, echo=FALSE, fig.height = 80, fig.width = 15}
 prev_week <- forecast_date - 21
 df <- get_forecaster_predictions(prev_week)
-plot_state_forecasters_(df %>% filter(forecast_date == prev_week))
+plot_state_forecasters_(df %>% filter(forecast_date == prev_week)) %>% plotly::ggplotly()
 ```

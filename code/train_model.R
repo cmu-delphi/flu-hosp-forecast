@@ -2,6 +2,7 @@ library(dplyr)
 library(tibble)
 library(covidcast)
 library(evalcast)
+
 source('quantgen.R')
 source('ensemble.R')
 
@@ -26,7 +27,11 @@ states_dc_pr_vi = c('al', 'ak', 'az', 'ar', 'ca', 'co', 'ct', 'dc', 'de', 'fl',
                     'nj', 'nm', 'ny', 'nc', 'nd', 'oh', 'ok', 'or', 'pa', 'ri',
                     'sc', 'sd', 'tn', 'tx', 'ut', 'vt', 'va', 'wa', 'wv', 'wi',
                     'wy', 'pr', 'vi')
-forecast_dates = lubridate::today()
+if (Sys.getenv("FORECAST_DATE", "") != "") {
+  forecast_dates <- as.Date(Sys.getenv("FORECAST_DATE"))
+} else {
+  forecast_dates <- lubridate::today()
+}
 cache_dir <- Sys.getenv("FLU_CACHE", "exploration")
 offline_signal_dir <- here::here(paste0("cache/", cache_dir, "/signals"))
 
