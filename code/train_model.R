@@ -127,6 +127,10 @@ preds_state <- get_predictions(ens1,
 t1 = Sys.time()
 print(t1-t0)
 
+
+if (!dir.exists('data-forecasts/CMU-TimeSeries')) {
+  dir.create('data-forecasts/CMU-TimeSeries', recursive = TRUE)
+}
 readr::write_csv(
   preds_state %>%
     dplyr::mutate(forecast_date = forecast_dates - 1),
