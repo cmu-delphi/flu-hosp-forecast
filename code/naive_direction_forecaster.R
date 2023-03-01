@@ -182,7 +182,7 @@ write_csv(
   quote="all"
 )
 
-if (nominal_forecast_date != as.Date("2023-02-20")) stop("need to update week-to-week exclusions")
+if (nominal_forecast_date != as.Date("2023-02-27")) stop("need to update week-to-week exclusions")
 excluded_locations =
   c(
     # for now, always exclude VI (as, at time of last check, it was all zeros
