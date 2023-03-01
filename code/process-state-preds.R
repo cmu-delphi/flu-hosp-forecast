@@ -9,7 +9,7 @@ INCIDENCE_RATE <- 100000
 # VI data has been just zeroes for a long time, so we exclude it.
 # Add extra states to this list if needed.
 # They will be included in the national forecast, but not in the state-level forecast.
-exclude_geos <- c("vi", "ca", "id", "in", "ky", "ma", "me", "mi", "nm", "or", "wv")
+exclude_geos <- c("vi")
 
 
 get_preds_full = function(preds_state) {

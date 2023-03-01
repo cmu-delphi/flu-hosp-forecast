@@ -182,7 +182,7 @@ write_csv(
   quote="all"
 )
 
-if (nominal_forecast_date != as.Date("2023-02-13")) stop("need to update week-to-week exclusions")
+if (nominal_forecast_date != as.Date("2023-02-20")) stop("need to update week-to-week exclusions")
 excluded_locations =
   c(
     # for now, always exclude VI (as, at time of last check, it was all zeros
@@ -194,7 +194,7 @@ excluded_locations =
     # additional set of locations to exclude this run ("week-to-week"
     # exclusions for this week):
     augmented_location_data %>%
-      filter(geo_value %in% rlang::chr("me", "nm", "ok")) %>%
+      filter(geo_value %in% rlang::chr()) %>%
       pull(location)
   )
 # TODO validate week-to-week exclusions aren't misspelled
