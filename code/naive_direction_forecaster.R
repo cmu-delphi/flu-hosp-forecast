@@ -35,23 +35,26 @@ augmented_location_data = fetch_updating_resource(
          geo_type = dplyr::if_else(location == "US", "nation", "state"),
          geo_value = dplyr::if_else(location == "US", "us", tolower(covidcast::fips_to_abbr(location))))
 
+# These locations will not be evaluated, and I believe that they do not want
+# submissions for these locations. (And there may not be the threshold/any data
+# for them in the location data above.)
 nonevaluated_geo_values = c("as","gu","mp","vi")
 nonevaluated_locations = c("60","66","69","78")
-  # tibble(abbreviation = toupper(nonevaluated_geo_values)) %>%
-  # left_join(location_data %>% select(abbreviation, location), by="abbreviation") %>%
-  # pull(location) %>%
-  # .[!is.na(.)]
 
-# if (Sys.Date() != as.Date("2022-12-19")) stop("need to update date")
-# preds = read_csv("~/Downloads/2022-12-19-CMU-TimeSeries.csv", col_types=cols(location=col_character()))
-# forecast_date = Sys.Date()
-# short_snapshot = covidcast("hhs", "confirmed_admissions_influenza_1d", "day", "state", epirange(as.integer(format(Sys.Date()-20L, "%Y%m%d")), as.integer(format(Sys.Date(), "%Y%m%d"))), "*", as_of=as.integer(format(Sys.Date(),"%Y%m%d"))) %>% fetch_tbl() # FIXME * 7?
 today = Sys.Date()
+if (as.POSIXlt(today)$wday != 2L) {
+  warning("This script was designed to be run on a Tuesday, but `today` is not a Tuesday.")
+}
 
 # Set the `nominal_forecast_date` and the `forecast_as_of_date`. The
 # `nominal_forecast_date` determines what the output files should be named and
 # what the forecast target(_end_date)s are. The `forecast_as_of_date` determines
 # (through) what `as_of` we can use to prepare the forecast.
+#
+# Ideally, we would warn / stop to confirm instead of stop. But we might need to
+# check that this script does something reasonable. But this might be a moot
+# point if we're moving to production because we'd also need to tinker with the
+# "exploration" script to make things run on non-Tuesdays here.
 nominal_forecast_date = today - 1L
 stopifnot(as.POSIXlt(nominal_forecast_date)$wday == 1L) # Monday
 forecast_as_of_date = nominal_forecast_date + 1L
@@ -61,10 +64,15 @@ stopifnot(as.POSIXlt(forecast_as_of_date)$wday == 2L) # Tuesday
 # don't clobber things if we want to compare real-time vs. as-of).
 forecast_generation_date = today
 
+# XXX We should move this script to production and just use the production
+# forecasters here. Maybe call a caching forecaster or read a saved file.
 preds_state_prop_7dav = readRDS(here::here("cache","tuesday-forecasts","ens1",paste0(forecast_as_of_date,".RDS"))) %>%
   {
     out = .
-    # evalcast post-processing:
+    # Reproduce evalcast post-processing because we're working around it reading
+    # directly from the cache file. (Not sure why it was done this way; maybe
+    # because we did not have a setups file defining all the forecasters as
+    # caching forecasters.)
     assert_that(all(c("ahead", "geo_value", "quantile", "value") %in% names(out)),
                 msg = paste("Your forecaster must return a data frame with",
                             "(at least) the columnns `ahead`, `geo_value`,",
@@ -87,7 +95,13 @@ preds_state_prop_7dav = readRDS(here::here("cache","tuesday-forecasts","ens1",pa
     out
   }
 
+# TODO verify whether this is indeed identical to one of the `preds_full`s in
+# `train_model.R` / to the result of writing `train_model.R`'s `preds_full` then
+# reading it back in with `read_csv`.
 preds_full = get_preds_full(preds_state_prop_7dav)
+
+# We need to combine the quantile forecasts with recent observations in order to
+# do direction calculations; fetch that data now:
 short_snapshot =
   bind_rows(
     evalcast::download_signal(
@@ -106,6 +120,11 @@ short_snapshot =
     ) %>% as_tibble()
   )
 
+# Ideally, we want to compare forecast 7dsum for Saturday 2 weeks ahead to the
+# 7dsum for the Saturday directly preceding the forecast date. However, we might
+# have larger data latency and not have data for the preceding Saturday, in
+# which case we back off to the most recent 7dsum we have available, and just
+# accept the mismatch.
 reference_7d_counts =
   short_snapshot %>%
   # reference by forecast Monday - 2L = Saturday, else whatever is soonest before then
@@ -182,7 +201,7 @@ write_csv(
   quote="all"
 )
 
-if (nominal_forecast_date != as.Date("2023-02-27")) stop("need to update week-to-week exclusions")
+if (nominal_forecast_date != as.Date("2023-03-06")) stop("need to update week-to-week exclusions")
 excluded_locations =
   c(
     # for now, always exclude VI (as, at time of last check, it was all zeros
@@ -202,6 +221,7 @@ excluded_locations =
 filtered_direction_predictions = unfiltered_direction_predictions %>%
   filter(! location %in% excluded_locations)
 
+# Sanity check that the output probabilities sum to 1.
 stopifnot(
   all(abs(1 -
             filtered_direction_predictions %>%

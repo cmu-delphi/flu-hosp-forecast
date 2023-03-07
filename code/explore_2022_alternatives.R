@@ -17,7 +17,7 @@ forecast_dates <- seq(
   # Sys.Date() - 1L,
   # FIXME we normally don't use versions this recent as exploration forecast dates as they are still unstable and make the analysis not as reproducible (although this might allow them to be more similar to production forecasts if there are changes)
   Sys.Date() - 0L,
-  # only Mondays for now:
+  # only once per week for now:
   by = "week") %>%
   tail(1L)
 stopifnot(all(as.POSIXlt(forecast_dates)$wday == 2L)) # Tuesdays
@@ -214,6 +214,8 @@ production_forecaster_alternatives = list(
 
 # bettermc::mclapply inside `get_predictions` can make it harder to debug, even
 # when using only one core; just use a workaround disable it for now.
+#
+# (With recent evalcast updates, there should be better ways to do this.)
 invisible(bettermc::mclapply) # make sure bettermc is loaded (but not necessarily attached)
 if (!exists("bmc_mclapply_backup")) {
   bmc_mclapply_backup = bettermc::mclapply
