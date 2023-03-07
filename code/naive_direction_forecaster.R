@@ -11,7 +11,7 @@ library(epiprocess)
 devtools::load_all(here::here("code","direction.forecaster"), export_all=FALSE)
 
 source(here::here("code","approx-cdf.R"))
-source(here::here("code","process-state-preds.R"))
+source(here::here("code","postprocess_forecasts.R"))
 
 augmented_location_data = fetch_updating_resource(
   function() {

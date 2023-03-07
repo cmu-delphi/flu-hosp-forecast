@@ -14,6 +14,15 @@ def make_forecasts(production: bool = False):
     system("Rscript train_model.R")
 
 
+@app.command("postprocess")
+def postprocess_forecasts(production: bool = False):
+    """Postprocess forecasts for our main model."""
+    if production:
+        environ["FLU_CACHE"] = "production"
+
+    system("Rscript postprocess_forecasts.R")
+
+
 @app.command("notebook")
 def make_notebook(production: bool = False):
     """Make a notebook for our main model."""

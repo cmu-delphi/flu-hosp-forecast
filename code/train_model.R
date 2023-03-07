@@ -4,7 +4,6 @@ library(covidcast)
 library(evalcast)
 source('quantgen.R')
 source('ensemble.R')
-source('process-state-preds.R')
 
 # This script generates forecasts for today, but production runs shouldn't run
 # this directly; instead, they should run forecaster.py, which sets the
@@ -27,7 +26,7 @@ states_dc_pr_vi = c('al', 'ak', 'az', 'ar', 'ca', 'co', 'ct', 'dc', 'de', 'fl',
                     'nj', 'nm', 'ny', 'nc', 'nd', 'oh', 'ok', 'or', 'pa', 'ri',
                     'sc', 'sd', 'tn', 'tx', 'ut', 'vt', 'va', 'wa', 'wv', 'wi',
                     'wy', 'pr', 'vi')
-forecast_dates = lubridate::today()
+forecast_dates = as.Date(Sys.getenv("FORECAST_DATE", unset=lubridate::today()))
 cache_dir <- Sys.getenv("FLU_CACHE", "exploration")
 offline_signal_dir <- here::here(paste0("cache/", cache_dir, "/signals"))
 
@@ -35,6 +34,7 @@ if (strftime(forecast_dates, '%w') != '2') {
   warning('Forecaster being run on a day that is not a Tuesday. ',
           'The forecaster assumes that it is being run on Tuesday ',
           'in which aheads are predicted.')
+  stop()
 }
 
 make_start_day_ar = function(ahead, ntrain, lags) {
@@ -127,20 +127,12 @@ preds_state <- get_predictions(ens1,
 t1 = Sys.time()
 print(t1-t0)
 
-preds_full = get_preds_full(preds_state)
-preds_full$forecast_date = forecast_dates - 1
 
-# NOTE: While we make predictions on Tuesday, we want to label the file with a Monday, hence the -1.
-readr::write_csv(preds_full,
-                 sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries-prediction-cards.csv', forecast_dates - 1),
-                 # quote='all' is important to make sure the location column is quoted.
-                 quote='all')
-
-drops <- c("incidence_period", "geo_value", "ahead", "forecaster", "data_source", "signal")
-preds_full <- preds_full[, !(names(preds_full) %in% drops)]
-
-# NOTE: While we make predictions on Tuesday, we want to label the file with a Monday, hence the -1.
-readr::write_csv(preds_full,
-                 sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries.csv', forecast_dates - 1),
-                 # quote='all' is important to make sure the location column is quoted.
-                 quote='all')
+if (!dir.exists('data-forecasts/CMU-TimeSeries')) {
+  dir.create('data-forecasts/CMU-TimeSeries', recursive = TRUE)
+}
+readr::write_csv(
+  preds_state %>%
+    dplyr::mutate(forecast_date = forecast_dates - 1),
+  sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries-prediction-full.csv', forecast_dates - 1),
+)

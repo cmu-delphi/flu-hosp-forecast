@@ -15,10 +15,13 @@ pip install -r requirements.txt
 source venv/bin/activate
 
 # Run the forecasts and make an evaluation notebook (using exploration cache)
-python forecaster.py forecast notebook
+python forecaster.py forecast postprocess notebook
+
+# Run the forecasts on a given date (make sure it's a Tuesday)
+FORECAST_DATE=2023-02-28 python forecaster.py forecast postprocess notebook
 
 # Use the production cache
-python forecaster.py forecast --production notebook --production
+python forecaster.py forecast --production postprocess --production notebook --production
 
 # See the CLI help message
 python forecaster.py --help
