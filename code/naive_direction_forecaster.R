@@ -137,7 +137,7 @@ reference_7d_counts =
             .groups="drop")
 
 # rule of three for probability of "novel behavior"; mixing weight for uniform
-uniform.forecaster.weight = 3/(
+uniform_forecaster_weight = 3/(
   # roughly, how many years of hhs influenza are available
   as.numeric(forecast_as_of_date - as.Date("2020-10-16"))/(365+1/4-1/100+1/400) *
     # say there's one wave/season per year
@@ -183,8 +183,8 @@ unfiltered_direction_predictions =
   ) %>%
   # mix with uniform
   mutate(value =
-           (1-uniform.forecaster.weight) * value +
-           uniform.forecaster.weight * 1/n()) %>%
+           (1-uniform_forecaster_weight) * value +
+           uniform_forecaster_weight * 1/n()) %>%
   ungroup() %>%
   mutate(target = "2 wk flu hosp rate change") %>%
   select(forecast_date, target, location, type, type_id, value)
