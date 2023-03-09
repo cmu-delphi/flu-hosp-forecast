@@ -134,5 +134,5 @@ if (!dir.exists('data-forecasts/CMU-TimeSeries')) {
 readr::write_csv(
   preds_state %>%
     dplyr::mutate(forecast_date = forecast_dates - 1),
-  sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries-prediction-full.csv', forecast_dates - 1),
+  sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries-prediction-state.csv', forecast_dates - 1),
 )

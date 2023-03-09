@@ -75,12 +75,12 @@ get_preds_full = function(preds_state) {
 }
 
 preds_state <- readr::read_csv(
-    sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries-prediction-full.csv', forecast_dates - 1),
+    sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries-prediction-state.csv', forecast_dates - 1),
 )
 preds_full <- get_preds_full(preds_state)
 
 readr::write_csv(preds_full,
-                 sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries-prediction-cards.csv', forecast_dates - 1),
+                 sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries-full-cols.csv', forecast_dates - 1),
                  # quote='all' is important to make sure the location column is quoted.
                  quote='all')
 
