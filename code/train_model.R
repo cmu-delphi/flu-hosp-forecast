@@ -2,8 +2,8 @@ library(dplyr)
 library(tibble)
 library(covidcast)
 library(evalcast)
-source('quantgen.R')
-source('ensemble.R')
+source(here::here("code", "quantgen.R"))
+source(here::here("code", "ensemble.R"))
 
 # This script generates forecasts for today, but production runs shouldn't run
 # this directly; instead, they should run forecaster.py, which sets the
@@ -50,27 +50,16 @@ make_start_day_ar = function(ahead, ntrain, lags) {
 start_day_ar = make_start_day_ar(ahead, ntrain_nowindow, lags)
 
 ###############################################################################
-# SETTINGS FOR DIFFERENT MODELS                                               #
-###############################################################################
-idx = 1 
-signals_df = tribble(
-  ~data_source,         ~signal,        ~lags,            ~name,
-  'chng','smoothed_adj_outpatient_flu', list(lags, lags), 'CMU-TimeSeries',
-)
-
-###############################################################################
 # LEARN THE QAR MODEL AND SAVE OUTPUT                                         #
 ###############################################################################
-cmu_forecaster_name = signals_df$name[idx]
+cmu_forecaster_name = "CMU-TimeSeries"
 
 signals_ar = tibble::tibble(
-                      data_source = unique(c(response_data_source,
-                                             signals_df$data_source[idx])),
-                      signal = unique(c(response_signal,
-                                        signals_df$signal[idx])),
+                      data_source = unique(c(response_data_source)),
+                      signal = unique(c(response_signal)),
                       start_day = list(start_day_ar),
-                      geo_values=list(states_dc_pr_vi),
-                      geo_type=geo_type)
+                      geo_values = list(states_dc_pr_vi),
+                      geo_type = geo_type)
 
 production_forecaster_reference = list(
   forecaster = quantgen_forecaster %>%
@@ -81,7 +70,7 @@ production_forecaster_reference = list(
     geo_type=geo_type,
     tau=tau,
     n=ntrain_reference,
-    lags=signals_df$lags[[idx]],
+    lags=lags,
     lambda=0,
     nonneg=TRUE,
     sort=TRUE,
@@ -101,7 +90,7 @@ production_forecaster_nowindow_latencyfix = list(
     geo_type=geo_type,
     tau=tau,
     n=ntrain_nowindow,
-    lags=signals_df$lags[[idx]],
+    lags=lags,
     lambda=0,
     nonneg=TRUE,
     sort=TRUE,
