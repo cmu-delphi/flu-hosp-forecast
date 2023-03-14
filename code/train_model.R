@@ -27,8 +27,9 @@ states_dc_pr_vi = c('al', 'ak', 'az', 'ar', 'ca', 'co', 'ct', 'dc', 'de', 'fl',
                     'sc', 'sd', 'tn', 'tx', 'ut', 'vt', 'va', 'wa', 'wv', 'wi',
                     'wy', 'pr', 'vi')
 forecast_dates = as.Date(Sys.getenv("FORECAST_DATE", unset=lubridate::today()))
-cache_dir <- Sys.getenv("FLU_CACHE", "exploration")
+cache_dir <- Sys.getenv("FLU_CACHE", unset="exploration")
 offline_signal_dir <- here::here(paste0("cache/", cache_dir, "/signals"))
+forecast_cache_dir <- here::here("cache", cache_dir, "tuesday-forecasts")
 
 if (strftime(forecast_dates, '%w') != '2') {
   warning('Forecaster being run on a day that is not a Tuesday. ',
@@ -114,7 +115,7 @@ production_forecaster_nowindow_latencyfix = list(
 ens1 = make_ensemble_forecaster(
   list(production_forecaster_reference, production_forecaster_nowindow_latencyfix),
   offline_signal_dir = offline_signal_dir
-)
+) %>% make_caching_forecaster("ens1", forecast_cache_dir)
 
 t0 = Sys.time()
 preds_state <- get_predictions(ens1,

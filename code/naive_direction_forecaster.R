@@ -64,9 +64,12 @@ stopifnot(as.POSIXlt(forecast_as_of_date)$wday == 2L) # Tuesday
 # don't clobber things if we want to compare real-time vs. as-of).
 forecast_generation_date = today
 
+cache_dir <- Sys.getenv("FLU_CACHE", unset="exploration")
+forecaster_cached_output <- here::here("cache", cache_dir, "tuesday-forecasts", "ens1", paste0(forecast_as_of_date, ".RDS"))
+
 # XXX We should move this script to production and just use the production
 # forecasters here. Maybe call a caching forecaster or read a saved file.
-preds_state_prop_7dav = readRDS(here::here("cache","tuesday-forecasts","ens1",paste0(forecast_as_of_date,".RDS"))) %>%
+preds_state_prop_7dav = readRDS(forecaster_cached_output) %>%
   {
     out = .
     # Reproduce evalcast post-processing because we're working around it reading

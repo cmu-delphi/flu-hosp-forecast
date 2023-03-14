@@ -41,7 +41,7 @@ states_dc_pr_vi = c('al', 'ak', 'az', 'ar', 'ca', 'co', 'ct', 'dc', 'de', 'fl',
 base_offline_signal_dir <- here::here(paste0("cache/", "exploration", "/signals"))
 forecaster_offline_signal_dir = file.path(base_offline_signal_dir, "for-tuesday-forecasters")
 evaluation_offline_signal_dir = file.path(base_offline_signal_dir, "for-evaluation")
-forecast_cache_dir <- here::here("cache", "tuesday-forecasts")
+forecast_cache_dir <- here::here("cache", "exploration", "tuesday-forecasts")
 
 make_start_day_ar = function(ahead, ntrain, lags) {
   offset = eval(1 - max(ahead) - ntrain - max(lags))
