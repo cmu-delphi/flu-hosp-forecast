@@ -14,6 +14,15 @@ def make_forecasts(production: bool = False):
     system("Rscript train_model.R")
 
 
+@app.command("forecast-direction")
+def make_forecast_directions(production: bool = False):
+    """Make forecasts for our main model."""
+    if production:
+        environ["FLU_CACHE"] = "production"
+
+    system("Rscript naive_direction_forecaster.R")
+
+
 @app.command("postprocess")
 def postprocess_forecasts(production: bool = False):
     """Postprocess forecasts for our main model."""
