@@ -204,7 +204,7 @@ write_csv(
   quote="all"
 )
 
-if (nominal_forecast_date != as.Date("2023-03-06")) stop("need to update week-to-week exclusions")
+warn("WARNING: Did you remember to update the geo exclusions?")
 excluded_locations =
   c(
     # for now, always exclude VI (as, at time of last check, it was all zeros
