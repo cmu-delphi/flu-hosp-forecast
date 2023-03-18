@@ -26,16 +26,15 @@ states_dc_pr_vi = c('al', 'ak', 'az', 'ar', 'ca', 'co', 'ct', 'dc', 'de', 'fl',
                     'nj', 'nm', 'ny', 'nc', 'nd', 'oh', 'ok', 'or', 'pa', 'ri',
                     'sc', 'sd', 'tn', 'tx', 'ut', 'vt', 'va', 'wa', 'wv', 'wi',
                     'wy', 'pr', 'vi')
-forecast_dates = as.Date(Sys.getenv("FORECAST_DATE", unset=lubridate::today()))
+forecast_date <- as.Date(Sys.getenv("FORECAST_DATE", unset = Sys.Date()))
 cache_dir <- Sys.getenv("FLU_CACHE", unset="exploration")
 offline_signal_dir <- here::here(paste0("cache/", cache_dir, "/signals"))
 forecast_cache_dir <- here::here("cache", cache_dir, "tuesday-forecasts")
 
-if (strftime(forecast_dates, '%w') != '2') {
+if (strftime(forecast_date, '%w') != '2') {
   warning('Forecaster being run on a day that is not a Tuesday. ',
           'The forecaster assumes that it is being run on Tuesday ',
           'in which aheads are predicted.')
-  stop()
 }
 
 make_start_day_ar = function(ahead, ntrain, lags) {
@@ -121,7 +120,7 @@ t0 = Sys.time()
 preds_state <- get_predictions(ens1,
                       cmu_forecaster_name,
                       signals_ar,
-                      forecast_dates,
+                      forecast_date,
                       incidence_period='day',
                       forecaster_args=list()
                 )
@@ -134,6 +133,6 @@ if (!dir.exists('data-forecasts/CMU-TimeSeries')) {
 }
 readr::write_csv(
   preds_state %>%
-    dplyr::mutate(forecast_date = forecast_dates - 1),
-  sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries-prediction-state.csv', forecast_dates - 1),
+    dplyr::mutate(forecast_date = forecast_date - 1),
+  sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries-prediction-state.csv', forecast_date - 1),
 )
