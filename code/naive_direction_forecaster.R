@@ -41,8 +41,9 @@ augmented_location_data = fetch_updating_resource(
 nonevaluated_geo_values = c("as","gu","mp","vi")
 nonevaluated_locations = c("60","66","69","78")
 
-today = Sys.Date()
-if (as.POSIXlt(today)$wday != 2L) {
+today <- Sys.Date()
+forecast_date <- as.Date(Sys.getenv("FORECAST_DATE", unset = Sys.Date()))
+if (as.POSIXlt(forecast_date)$wday != 2L) {
   warning("This script was designed to be run on a Tuesday, but `today` is not a Tuesday.")
 }
 
@@ -55,10 +56,14 @@ if (as.POSIXlt(today)$wday != 2L) {
 # check that this script does something reasonable. But this might be a moot
 # point if we're moving to production because we'd also need to tinker with the
 # "exploration" script to make things run on non-Tuesdays here.
-nominal_forecast_date = today - 1L
-stopifnot(as.POSIXlt(nominal_forecast_date)$wday == 1L) # Monday
-forecast_as_of_date = nominal_forecast_date + 1L
-stopifnot(as.POSIXlt(forecast_as_of_date)$wday == 2L) # Tuesday
+nominal_forecast_date <- forecast_date - 1L
+if (as.POSIXlt(nominal_forecast_date)$wday != 1L) {
+  warning("The `nominal_forecast_date` should be a Monday.")
+}
+forecast_as_of_date <- nominal_forecast_date + 1L
+if (as.POSIXlt(forecast_as_of_date)$wday != 2L) {
+  warning("The `forecast_as_of_date` should be a Tuesday.")
+}
 
 # Also record the forecast generation date (extra metadata / to make sure we
 # don't clobber things if we want to compare real-time vs. as-of).
