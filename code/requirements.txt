@@ -1,1 +1,5 @@
+black
+GitPython
+python-dotenv
+slack_sdk
 typer[all]
