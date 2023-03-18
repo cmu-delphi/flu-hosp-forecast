@@ -34,7 +34,7 @@ plot_nation_forecasters_ <- function(df) {
 }
 #### END copied/adapted from cmu-delphi/hospitalization-forecaster
 
-predictions_file <- here::here("code", "data-forecasts", "CMU-TimeSeries", sprintf("%s-CMU-TimeSeries-prediction-cards.csv", forecast_date))
+predictions_file <- here::here("code", "data-forecasts", "CMU-TimeSeries", sprintf("%s-CMU-TimeSeries-full-cols.csv", forecast_date))
 flu_forecasts <- read_csv(predictions_file, show_col_types = FALSE)
 # hhs_data <- covidcast_signal(data_source = "hhs", signal = "confirmed_admissions_influenza_1d_7dav", geo_type = "state", start_day = "2021-11-15") %>% 
 #             as_tibble %>% group_by(geo_value) %>% summarize(hhs_mean = mean(value))
