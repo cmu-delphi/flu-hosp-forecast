@@ -1,15 +1,12 @@
-from datetime import (
-        date,
-        timedelta,
-        )
+from datetime import date, timedelta
 
 today = date.today()
 max_ahead = 28
 
-today.strftime('%Y-%m-%d')
+today.strftime("%Y-%m-%d")
 
 last_eval_date = today - timedelta(days=1)
-last_forecast_date = last_eval_date - timedelta(days=max_ahead+1)
+last_forecast_date = last_eval_date - timedelta(days=max_ahead + 1)
 
 output_str = f"""
 forecast_dates <- seq(as.Date('2021-10-01'),
@@ -28,7 +25,5 @@ states_dc_pr_vi = c('al', 'ak', 'az', 'ar', 'ca', 'co', 'ct', 'dc', 'de', 'fl',
                     'wy', 'pr', 'vi')
 """
 
-with open('common_params.R', 'w') as f:
+with open("common_params.R", "w") as f:
     f.write(output_str)
-
-
