@@ -165,11 +165,13 @@ def commit_to_repo(directions: bool = False):
     latest_commit_date = get_latest_commit_date(flu_submissions_repo)
     if latest_commit_date < FORECAST_DATE:
         if not directions:
-            flu_submissions_repo.index.add([str(FORECASTER_PATHS.FLU_SUBMISSION_DIR / f"{FORECAST_DATE_STR}-CMU-TimeSeries.csv")])
-            flu_submissions_repo.index.commit(f"[CMU-TimeSeries] Add {FORECAST_DATE_STR} predictions")
+            # Can't use .index because we're using a sparse index. So we use the CLI wrapper .git instead.
+            flu_submissions_repo.git.add(str(FORECASTER_PATHS.FLU_SUBMISSION_DIR / f"{FORECAST_DATE_STR}-CMU-TimeSeries.csv"))
+            flu_submissions_repo.git.commit("-m", f"[CMU-TimeSeries] Add {FORECAST_DATE_STR} predictions")
         else:
-            flu_submissions_repo.index.add([str(FORECASTER_PATHS.FLU_DIRECTION_SUBMISSION_DIR / f"{FORECAST_DATE_STR}-CMU-TimeSeries.csv")])
-            flu_submissions_repo.index.commit(f"[CMU-TimeSeries] Add {FORECAST_DATE_STR} direction predictions")
+        # Can't use .index because we're using a sparse index. So we use the CLI wrapper .git instead.
+            flu_submissions_repo.git.add(str(FORECASTER_PATHS.FLU_DIRECTION_SUBMISSION_DIR / f"{FORECAST_DATE_STR}-CMU-TimeSeries.csv"))
+            flu_submissions_repo.git.commit("-m", f"[CMU-TimeSeries] Add {FORECAST_DATE_STR} direction predictions")
     else:
         print(f"Latest commit is for {latest_commit_date.strftime(DATE_FORMAT)}; skipping commit.")
 
