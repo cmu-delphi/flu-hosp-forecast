@@ -3,8 +3,8 @@ library(dplyr)
 library(tibble)
 library(evalcast)
 library(purrr)
-source('quantgen.R')
-source('ensemble.R')
+source(here::here("code", "quantgen.R'"))
+source(here::here("code", "ensemble.R"))
 
 #### Duplicates a lot of code from other files in this repo as this is meant to
 #### be a one-off analysis and it was easier. We may want to restructure things
@@ -17,7 +17,7 @@ forecast_dates <- seq(
   # Sys.Date() - 1L,
   # FIXME we normally don't use versions this recent as exploration forecast dates as they are still unstable and make the analysis not as reproducible (although this might allow them to be more similar to production forecasts if there are changes)
   Sys.Date() - 0L,
-  # only Mondays for now:
+  # only once per week for now:
   by = "week") %>%
   tail(1L)
 stopifnot(all(as.POSIXlt(forecast_dates)$wday == 2L)) # Tuesdays
@@ -41,7 +41,7 @@ states_dc_pr_vi = c('al', 'ak', 'az', 'ar', 'ca', 'co', 'ct', 'dc', 'de', 'fl',
 base_offline_signal_dir <- here::here(paste0("cache/", "exploration", "/signals"))
 forecaster_offline_signal_dir = file.path(base_offline_signal_dir, "for-tuesday-forecasters")
 evaluation_offline_signal_dir = file.path(base_offline_signal_dir, "for-evaluation")
-forecast_cache_dir <- here::here("cache/tuesday-forecasts")
+forecast_cache_dir <- here::here("cache", "exploration", "tuesday-forecasts")
 
 make_start_day_ar = function(ahead, ntrain, lags) {
   offset = eval(1 - max(ahead) - ntrain - max(lags))
@@ -214,6 +214,8 @@ production_forecaster_alternatives = list(
 
 # bettermc::mclapply inside `get_predictions` can make it harder to debug, even
 # when using only one core; just use a workaround disable it for now.
+#
+# (With recent evalcast updates, there should be better ways to do this.)
 invisible(bettermc::mclapply) # make sure bettermc is loaded (but not necessarily attached)
 if (!exists("bmc_mclapply_backup")) {
   bmc_mclapply_backup = bettermc::mclapply

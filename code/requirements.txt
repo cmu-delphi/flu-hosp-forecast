@@ -1,1 +1,7 @@
+black
+GitPython
+python-dotenv
+radian
+slack_sdk
 typer[all]
+wheel

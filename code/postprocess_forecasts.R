@@ -7,11 +7,7 @@ INCIDENCE_RATE <- 100000
 # They will be included in the national forecast, but not in the state-level forecast.
 exclude_geos <- tolower(c("vi"))
 # NOTE: While we make predictions on Tuesday, we want to label the file with a Monday, hence the -1's below.
-if (Sys.getenv("FORECAST_DATE", "") != "") {
-  forecast_dates <- as.Date(Sys.getenv("FORECAST_DATE"))
-} else {
-  forecast_dates <- lubridate::today()
-}
+forecast_dates <- as.Date(Sys.getenv("FORECAST_DATE", unset=lubridate::today()))
 
 # Load state population data
 state_pop = readr::read_csv(here::here("code","state_pop.csv"), show_col_types = FALSE) %>% rename (
@@ -79,12 +75,12 @@ get_preds_full = function(preds_state) {
 }
 
 preds_state <- readr::read_csv(
-    sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries-prediction-full.csv', forecast_dates - 1),
+    sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries-prediction-state.csv', forecast_dates - 1),
 )
 preds_full <- get_preds_full(preds_state)
 
 readr::write_csv(preds_full,
-                 sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries-prediction-cards.csv', forecast_dates - 1),
+                 sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries-full-cols.csv', forecast_dates - 1),
                  # quote='all' is important to make sure the location column is quoted.
                  quote='all')
 
