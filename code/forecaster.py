@@ -53,8 +53,8 @@ def get_previous_weekday(cur_date: datetime, weekday: int) -> datetime:
 DATE_FORMAT = "%Y-%m-%d"
 NEAREST_TUESDAY = get_previous_weekday(datetime.today(), 1)
 os.environ["FORECAST_DATE"] = os.environ.get("FORECAST_DATE", NEAREST_TUESDAY.strftime(DATE_FORMAT))
-FORECAST_DATE = datetime.strptime(os.environ["FORECAST_DATE"], DATE_FORMAT)
-FORECAST_DATE_STR = FORECAST_DATE.strftime(DATE_FORMAT)
+NOMINAL_FORECAST_DATE = NEAREST_TUESDAY - timedelta(days=1)
+NOMINAL_FORECAST_DATE_STR = NOMINAL_FORECAST_DATE.strftime(DATE_FORMAT)
 TODAY = datetime.today()
 TODAY_STR = TODAY.strftime(DATE_FORMAT)
 
@@ -73,13 +73,13 @@ def get_forecaster_paths():
     return ForecasterPaths(
         Path(os.environ.get("FLU_SUBMISSIONS_PATH", "")) / "data-forecasts" / "CMU-TimeSeries",
         Path(os.environ.get("FLU_SUBMISSIONS_PATH", "")) / "data-experimental" / "CMU-TimeSeries",
-        Path(os.getcwd()) / "data-forecasts" / "CMU-TimeSeries" / f"{FORECAST_DATE_STR}-CMU-TimeSeries.csv",
+        Path(os.getcwd()) / "data-forecasts" / "CMU-TimeSeries" / f"{NOMINAL_FORECAST_DATE_STR}-CMU-TimeSeries.csv",
         Path(os.getcwd())
         / "data-forecasts"
         / "direction-predictions"
-        / f"generated-{TODAY_STR}-as-of-{FORECAST_DATE_STR}"
-        / f"{FORECAST_DATE_STR}-CMU-TimeSeries.csv",
-        Path(os.getcwd()) / f"{FORECAST_DATE_STR}-flu-forecast.html",
+        / f"generated-{TODAY_STR}"
+        / f"{NOMINAL_FORECAST_DATE_STR}-CMU-TimeSeries.csv",
+        Path(os.getcwd()) / f"{NOMINAL_FORECAST_DATE_STR}-flu-forecast.html",
     )
 
 
@@ -163,15 +163,15 @@ def commit_to_repo(directions: bool = False):
     assert flu_submissions_repo.remote(name="origin").exists()
 
     latest_commit_date = get_latest_commit_date(flu_submissions_repo)
-    if latest_commit_date < FORECAST_DATE:
+    if latest_commit_date < NOMINAL_FORECAST_DATE:
         if not directions:
             # Can't use .index because we're using a sparse index. So we use the CLI wrapper .git instead.
-            flu_submissions_repo.git.add(str(FORECASTER_PATHS.FLU_SUBMISSION_DIR / f"{FORECAST_DATE_STR}-CMU-TimeSeries.csv"))
-            flu_submissions_repo.git.commit("-m", f"[CMU-TimeSeries] Add {FORECAST_DATE_STR} predictions")
+            flu_submissions_repo.git.add(str(FORECASTER_PATHS.FLU_SUBMISSION_DIR / f"{NOMINAL_FORECAST_DATE_STR}-CMU-TimeSeries.csv"))
+            flu_submissions_repo.git.commit("-m", f"[CMU-TimeSeries] Add {NOMINAL_FORECAST_DATE_STR} predictions")
         else:
         # Can't use .index because we're using a sparse index. So we use the CLI wrapper .git instead.
-            flu_submissions_repo.git.add(str(FORECASTER_PATHS.FLU_DIRECTION_SUBMISSION_DIR / f"{FORECAST_DATE_STR}-CMU-TimeSeries.csv"))
-            flu_submissions_repo.git.commit("-m", f"[CMU-TimeSeries] Add {FORECAST_DATE_STR} direction predictions")
+            flu_submissions_repo.git.add(str(FORECASTER_PATHS.FLU_DIRECTION_SUBMISSION_DIR / f"{NOMINAL_FORECAST_DATE_STR}-CMU-TimeSeries.csv"))
+            flu_submissions_repo.git.commit("-m", f"[CMU-TimeSeries] Add {NOMINAL_FORECAST_DATE_STR} direction predictions")
     else:
         print(f"Latest commit is for {latest_commit_date.strftime(DATE_FORMAT)}; skipping commit.")
 
@@ -201,11 +201,11 @@ def submit(directions: bool = False):
     flu_submissions_repo.remote(name="origin").pull()
 
     if not directions:
-        make_new_branch(flu_submissions_repo, f"forecast-{FORECAST_DATE_STR}")
-        switch_to_branch(flu_submissions_repo, f"forecast-{FORECAST_DATE_STR}")
+        make_new_branch(flu_submissions_repo, f"forecast-{NOMINAL_FORECAST_DATE_STR}")
+        switch_to_branch(flu_submissions_repo, f"forecast-{NOMINAL_FORECAST_DATE_STR}")
     else:
-        make_new_branch(flu_submissions_repo, f"forecast-directions-{FORECAST_DATE_STR}")
-        switch_to_branch(flu_submissions_repo, f"forecast-directions-{FORECAST_DATE_STR}")
+        make_new_branch(flu_submissions_repo, f"forecast-directions-{NOMINAL_FORECAST_DATE_STR}")
+        switch_to_branch(flu_submissions_repo, f"forecast-directions-{NOMINAL_FORECAST_DATE_STR}")
 
     copy_to_repo(directions=directions)
     commit_to_repo(directions=directions)
@@ -263,7 +263,7 @@ def post_notebook_to_slack(test_mode: bool = False):
     )
 
     hyperlinks = get_hyperlink_text(notebook_link, "Notebook") + " " + get_hyperlink_text(csv_link, "CSV") + " " + get_hyperlink_text(csv_link2, "Direction CSV")
-    text = f"Flu: {hyperlinks} for {FORECAST_DATE_STR} <@{DMITRY_ID}> <@{LOGAN_ID}>."
+    text = f"Flu: {hyperlinks} for {NOMINAL_FORECAST_DATE_STR} <@{DMITRY_ID}> <@{LOGAN_ID}>."
 
     post_upload_message(client, text, channel=SLACK_CHANNEL)
 
