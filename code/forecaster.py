@@ -183,8 +183,9 @@ def push_to_repo():
     """
     flu_submissions_repo = git.Repo(os.environ["FLU_SUBMISSIONS_PATH"])
     assert flu_submissions_repo.remote(name="origin").exists()
+    branch_name = flu_submissions_repo.active_branch.name
 
-    flu_submissions_repo.remote(name="origin").push()
+    flu_submissions_repo.remote(name="origin").push(f"refs/heads/{branch_name}:refs/heads/{branch_name}")
 
 
 @app.command("submit")
