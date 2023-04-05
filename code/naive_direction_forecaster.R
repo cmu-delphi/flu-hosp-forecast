@@ -8,10 +8,10 @@ library(checkmate)
 
 library(epidatr)
 library(epiprocess)
-devtools::load_all(here::here("code","direction.forecaster"), export_all=FALSE)
+devtools::load_all(here::here("code", "direction.forecaster"), export_all=FALSE)
 
-source(here::here("code","approx-cdf.R"))
-source(here::here("code","postprocess_forecasts.R"))
+source(here::here("code", "approx-cdf.R"))
+source(here::here("code", "postprocess_forecasts.R"))
 
 augmented_location_data = fetch_updating_resource(
   function() {
@@ -38,7 +38,8 @@ augmented_location_data = fetch_updating_resource(
 # These locations will not be evaluated, and I believe that they do not want
 # submissions for these locations. (And there may not be the threshold/any data
 # for them in the location data above.)
-nonevaluated_geo_values = c("as","gu","mp","vi")
+# exclude_geos is set in postprocess_forecasts.R
+nonevaluated_geo_values = c(c("as","gu","mp","vi"), exclude_geos)
 nonevaluated_locations = c("60","66","69","78")
 
 today <- Sys.Date()
@@ -197,7 +198,7 @@ unfiltered_direction_predictions =
   mutate(target = "2 wk flu hosp rate change") %>%
   select(forecast_date, target, location, type, type_id, value)
 
-direction_predictions_dir = here::here("code","data-forecasts","direction-predictions",paste0("generated-",forecast_generation_date,"-as-of-",forecast_as_of_date))
+direction_predictions_dir = here::here("code", "data-forecasts", "direction-predictions", paste0("generated-", forecast_generation_date))
 if (!dir.exists(direction_predictions_dir)) {
   dir.create(direction_predictions_dir, recursive=TRUE)
 }
@@ -209,7 +210,6 @@ write_csv(
   quote="all"
 )
 
-warn("WARNING: Did you remember to update the geo exclusions?")
 excluded_locations =
   c(
     # for now, always exclude VI (as, at time of last check, it was all zeros
@@ -224,7 +224,6 @@ excluded_locations =
       filter(geo_value %in% rlang::chr()) %>%
       pull(location)
   )
-# TODO validate week-to-week exclusions aren't misspelled
 
 filtered_direction_predictions = unfiltered_direction_predictions %>%
   filter(! location %in% excluded_locations)
@@ -245,3 +244,4 @@ write_csv(
   # quote='all' is important to make sure the location column is quoted.
   quote="all"
 )
+
