@@ -1,4 +1,3 @@
-
 # Simple caching for now; not doing smart minimal updates. Relicensing code
 # originally in cmu-delphi/epiforecast.
 
@@ -33,21 +32,20 @@
 #'   exist
 #'
 #' @export
-fetch_updating_resource = function(fetch,
-                                   check_response,
-                                   cache_file_prefix=NULL,
-                                   cache_invalidation_period=as.difftime(1L, units="days"),
-                                   force_cache_invalidation=FALSE,
-                                   silent=FALSE,
-                                   make_ancestor_directories=TRUE
-                                   ) {
-  cache_filepath =
+fetch_updating_resource <- function(fetch,
+                                    check_response,
+                                    cache_file_prefix = NULL,
+                                    cache_invalidation_period = as.difftime(1L, units = "days"),
+                                    force_cache_invalidation = FALSE,
+                                    silent = FALSE,
+                                    make_ancestor_directories = TRUE) {
+  cache_filepath <-
     if (is.null(cache_file_prefix)) {
       NULL
     } else {
       paste0(cache_file_prefix, ".RDS")
     }
-  should_fetch_now =
+  should_fetch_now <-
     if (is.null(cache_filepath)) {
       TRUE
     } else if (force_cache_invalidation) {
@@ -55,8 +53,8 @@ fetch_updating_resource = function(fetch,
     } else if (!file.exists(cache_filepath)) {
       TRUE
     } else {
-      fetch_info = readRDS(cache_filepath) # ==> fetch_info
-      should_refetch = difftime(Sys.time(), fetch_info$fetch_timestamp) > cache_invalidation_period
+      fetch_info <- readRDS(cache_filepath) # ==> fetch_info
+      should_refetch <- difftime(Sys.time(), fetch_info$fetch_timestamp) > cache_invalidation_period
       should_refetch
     }
 
@@ -77,37 +75,37 @@ fetch_updating_resource = function(fetch,
     if (!silent) {
       message("Cached version of data used.")
     }
-    fetch_response = fetch_info$fetch_response
-    fetch_timestamp = fetch_info$fetch_timestamp
+    fetch_response <- fetch_info$fetch_response
+    fetch_timestamp <- fetch_info$fetch_timestamp
   }
 
   check_response(fetch_response)
 
   if (!is.null(cache_filepath) && should_fetch_now) {
     ## Update cache:
-    fetch_info = list(fetch_response=fetch_response, fetch_timestamp=fetch_timestamp)
+    fetch_info <- list(fetch_response = fetch_response, fetch_timestamp = fetch_timestamp)
     if (make_ancestor_directories && !dir.exists(dirname(cache_filepath))) {
-      dir.create(dirname(cache_filepath), recursive=TRUE)
+      dir.create(dirname(cache_filepath), recursive = TRUE)
     }
     saveRDS(fetch_info, cache_filepath)
   }
 
-  return (fetch_response)
+  return(fetch_response)
 }
 
 
 
-.datatable.aware=TRUE
+.datatable.aware <- TRUE
 
 #' @export
-epix_truncate_versions_after = function(archive, version) {
-  checkmate::assert(epiprocess::is_epi_archive(archive, grouped_okay=TRUE))
+epix_truncate_versions_after <- function(archive, version) {
+  checkmate::assert(epiprocess::is_epi_archive(archive, grouped_okay = TRUE))
   checkmate::assert(identical(class(archive$DT$version), class(version)))
 
-  result = archive$clone()
-  result$DT <- result$DT[result$DT$version <= version, colnames(result$DT), with=FALSE]
+  result <- archive$clone()
+  result$DT <- result$DT[result$DT$version <= version, colnames(result$DT), with = FALSE]
   if (!is.na(result$clobberable_versions_start) &&
-        result$clobberable_versions_start > version) {
+    result$clobberable_versions_start > version) {
     result$clobberable_versions_start <- NA
   }
   result$versions_end <- version
