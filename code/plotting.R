@@ -98,7 +98,9 @@ plot_points <- function(g, points_df) {
 }
 
 plot_state_forecasters <- function(predictions_cards, exclude_geos = c(), start_day = NULL, ncol = 5, offline_signal_dir = NULL) {
-  if (nrow(predictions_cards) == 0) return(NULL)
+  if (nrow(predictions_cards) == 0) {
+    return(NULL)
+  }
 
   td1 <- get_truth_data(exclude_geos = exclude_geos, data_source = "hhs", signal = "confirmed_admissions_influenza_1d_7dav", start_day = start_day, geo_type = "state", offline_signal_dir = offline_signal_dir) %>%
     mutate(value = 7L * .data$value)
@@ -140,7 +142,9 @@ plot_state_forecasters <- function(predictions_cards, exclude_geos = c(), start_
 }
 
 plot_nation_forecasters <- function(predictions_cards, exclude_geos = c(), start_day = NULL, ncol = 5, offline_signal_dir = NULL) {
-  if (nrow(predictions_cards) == 0) return(NULL)
+  if (nrow(predictions_cards) == 0) {
+    return(NULL)
+  }
 
   td1 <- get_truth_data(exclude_geos = exclude_geos, data_source = "hhs", signal = "confirmed_admissions_influenza_1d_7dav", start_day = start_day, geo_type = "nation", offline_signal_dir = offline_signal_dir) %>%
     mutate(value = 7L * .data$value)

@@ -103,19 +103,20 @@ library(tibble)
 library(ggplot2)
 library(Matrix)
 
-source('common_params.R')
-aheads=ahead;rm(ahead)
-hhs_source = 'hhs'
-flu_hosp_num  = 'confirmed_admissions_influenza_1d_7dav'
-flu_hosp_prop = 'confirmed_admissions_influenza_1d_prop_7dav'
-covid_hosp_num  = 'confirmed_admissions_covid_1d_7dav'
-covid_hosp_prop = 'confirmed_admissions_covid_1d_prop_7dav'
-jhu_source = 'jhu-csse'
-covid_case_num  = 'confirmed_7dav_incidence_num'
-covid_case_prop = 'confirmed_7dav_incidence_prop'
-start_day =  '2020-05-01'
-end_day =    last_eval_date
-colors = 1:4
+source("common_params.R")
+aheads <- ahead
+rm(ahead)
+hhs_source <- "hhs"
+flu_hosp_num <- "confirmed_admissions_influenza_1d_7dav"
+flu_hosp_prop <- "confirmed_admissions_influenza_1d_prop_7dav"
+covid_hosp_num <- "confirmed_admissions_covid_1d_7dav"
+covid_hosp_prop <- "confirmed_admissions_covid_1d_prop_7dav"
+jhu_source <- "jhu-csse"
+covid_case_num <- "confirmed_7dav_incidence_num"
+covid_case_prop <- "confirmed_7dav_incidence_prop"
+start_day <- "2020-05-01"
+end_day <- last_eval_date
+colors <- 1:4
 ```
 ### Forecasting results
 
@@ -142,236 +143,297 @@ mechanics of how the forecasts change in states of varying population should
 be more closely studied.
 
 ```{r plot_results_wis, fig.width=12, fig.height=12, warning=FALSE, message=FALSE}
+full_results <- readRDS("results/results_23.RDS")
 
-full_results = readRDS('results/results_23.RDS')
+results <- full_results %>%
+  filter(
+    !stringr::str_ends(forecaster, "_7"),
+    !stringr::str_detect(forecaster, "logtrans"),
+  ) %>%
+  mutate(
+    forecaster = stringr::str_replace(forecaster, "_23", ""),
+  )
 
-results = full_results %>% filter (
-      !stringr::str_ends(forecaster, '_7'),
-      !stringr::str_detect(forecaster, 'logtrans'),
-    ) %>% mutate (
-      forecaster=stringr::str_replace(forecaster, '_23', ''),
+state_pop <- covidcast::state_census %>%
+  tibble() %>%
+  transmute(
+    geo_value = stringr::str_to_lower(ABBR),
+    pop = POPESTIMATE2019,
+  ) %>%
+  mutate(
+    state_with_pop = sprintf("%s, %d", geo_value, pop),
+    state_with_pop = factor(state_with_pop,
+      levels = state_with_pop[order(pop)]
     )
-
-state_pop = covidcast::state_census %>% tibble (
-    ) %>% transmute (
-      geo_value = stringr::str_to_lower(ABBR),
-      pop = POPESTIMATE2019,
-    ) %>% mutate (
-      state_with_pop = sprintf('%s, %d', geo_value, pop),
-      state_with_pop = factor(state_with_pop,
-                      levels = state_with_pop[order(pop)])
-    )
+  )
 
 
-results = results %>% left_join (
-      state_pop,
-      by='geo_value',
-    ) %>% mutate (
-      pop_wis = wis * pop,
-      pop_ae = ae * pop,
-    )
+results <- results %>%
+  left_join(
+    state_pop,
+    by = "geo_value",
+  ) %>%
+  mutate(
+    pop_wis = wis * pop,
+    pop_ae = ae * pop,
+  )
 
-results$forecaster = factor(results$forecaster,
-                            levels=c('Baseline','AR3','AR3+CHNG1','AR3+CHNG3'))
+results$forecaster <- factor(results$forecaster,
+  levels = c("Baseline", "AR3", "AR3+CHNG1", "AR3+CHNG3")
+)
 
-mean_results = results %>% group_by (
-        forecaster,
-        ahead,
-      ) %>% summarize (
-        mean_wis = mean(wis),
-        mean_pop_wis = mean(pop_wis),
-        mean_cov80 = mean(cov80),
-        median_wis = median(wis),
-        median_pop_wis = median(pop_wis),
-      ) %>% ungroup
-relative_mean = inner_join (
-      mean_results %>% filter (
-        forecaster == 'Baseline'
-      ) %>% select (
-        -forecaster,
-      ),
-      mean_results,
-      by=c('ahead'),
-      suffix=c('_Baseline', '')
-    ) %>% transmute (
-      ahead,
-      forecaster,
-      relative_mean_wis = mean_wis/mean_wis_Baseline,
-      relative_median_wis = median_wis/median_wis_Baseline,
-    )
+mean_results <- results %>%
+  group_by(
+    forecaster,
+    ahead,
+  ) %>%
+  summarize(
+    mean_wis = mean(wis),
+    mean_pop_wis = mean(pop_wis),
+    mean_cov80 = mean(cov80),
+    median_wis = median(wis),
+    median_pop_wis = median(pop_wis),
+  ) %>%
+  ungroup()
+relative_mean <- inner_join(
+  mean_results %>% filter(
+    forecaster == "Baseline"
+  ) %>% select(
+    -forecaster,
+  ),
+  mean_results,
+  by = c("ahead"),
+  suffix = c("_Baseline", "")
+) %>% transmute(
+  ahead,
+  forecaster,
+  relative_mean_wis = mean_wis / mean_wis_Baseline,
+  relative_median_wis = median_wis / median_wis_Baseline,
+)
 
-plt_mean_wis = mean_results %>% ggplot (
-      aes(x=ahead,
-          y=mean_wis,
-          color=forecaster)
-    ) + geom_point (
-    ) + geom_line (
-    ) + scale_color_manual(
-      values=colors,
-    ) + geom_vline (
-      xintercept=c(5, 12, 19, 26),
-      linetype='dotted',
-    ) + ylab (
-      'Mean WIS'
-    ) + theme(
-      legend.position="bottom"
-    )
+plt_mean_wis <- mean_results %>% ggplot(
+  aes(
+    x = ahead,
+    y = mean_wis,
+    color = forecaster
+  )
+) +
+  geom_point() +
+  geom_line() +
+  scale_color_manual(
+    values = colors,
+  ) +
+  geom_vline(
+    xintercept = c(5, 12, 19, 26),
+    linetype = "dotted",
+  ) +
+  ylab(
+    "Mean WIS"
+  ) +
+  theme(
+    legend.position = "bottom"
+  )
 
-plt_mean_pop_wis = mean_results %>% ggplot (
-      aes(x=ahead,
-          y=mean_pop_wis,
-          color=forecaster)
-    ) + geom_point (
-    ) + geom_line (
-    ) + scale_color_manual(
-      values=colors,
-    ) + geom_vline (
-      xintercept=c(5, 12, 19, 26),
-      linetype='dotted',
-    ) + ylab (
-      'Mean WIS (population-weighted)'
-    ) + theme(
-      legend.position="bottom"
-    )
+plt_mean_pop_wis <- mean_results %>% ggplot(
+  aes(
+    x = ahead,
+    y = mean_pop_wis,
+    color = forecaster
+  )
+) +
+  geom_point() +
+  geom_line() +
+  scale_color_manual(
+    values = colors,
+  ) +
+  geom_vline(
+    xintercept = c(5, 12, 19, 26),
+    linetype = "dotted",
+  ) +
+  ylab(
+    "Mean WIS (population-weighted)"
+  ) +
+  theme(
+    legend.position = "bottom"
+  )
 
-plt_relative_mean = relative_mean %>% ggplot (
-      aes(x=ahead,
-          y=relative_mean_wis,
-          color=forecaster)
-    ) + geom_point (
-    ) + geom_line (
-    ) + scale_color_manual(
-      values=colors,
-    ) + geom_vline (
-      xintercept=c(5, 12, 19, 26),
-      linetype='dotted',
-    ) + ylab (
-      'Mean WIS (relative to mean WIS of Baseline)'
-    ) + theme(
-      legend.position="bottom"
-    )
+plt_relative_mean <- relative_mean %>% ggplot(
+  aes(
+    x = ahead,
+    y = relative_mean_wis,
+    color = forecaster
+  )
+) +
+  geom_point() +
+  geom_line() +
+  scale_color_manual(
+    values = colors,
+  ) +
+  geom_vline(
+    xintercept = c(5, 12, 19, 26),
+    linetype = "dotted",
+  ) +
+  ylab(
+    "Mean WIS (relative to mean WIS of Baseline)"
+  ) +
+  theme(
+    legend.position = "bottom"
+  )
 
-plt_cov80 = mean_results %>% ggplot (
-      aes(x=ahead,
-          y=mean_cov80,
-          color=forecaster)
-    ) + geom_point (
-    ) + geom_line (
-    ) + scale_color_manual(
-      values=colors,
-    ) + geom_vline (
-      xintercept=c(5, 12, 19, 26),
-      linetype='dotted',
-    ) + geom_hline (
-      yintercept=0.8,
-      linetype='dotted',
-    ) + ylab (
-      'Prop. 80% intervals that covered truth'
-    ) + theme(
-      legend.position="bottom"
-    )
+plt_cov80 <- mean_results %>% ggplot(
+  aes(
+    x = ahead,
+    y = mean_cov80,
+    color = forecaster
+  )
+) +
+  geom_point() +
+  geom_line() +
+  scale_color_manual(
+    values = colors,
+  ) +
+  geom_vline(
+    xintercept = c(5, 12, 19, 26),
+    linetype = "dotted",
+  ) +
+  geom_hline(
+    yintercept = 0.8,
+    linetype = "dotted",
+  ) +
+  ylab(
+    "Prop. 80% intervals that covered truth"
+  ) +
+  theme(
+    legend.position = "bottom"
+  )
 
 gridExtra::grid.arrange(plt_mean_wis,
-                        plt_mean_pop_wis,
-                        plt_relative_mean,
-                        plt_cov80,
-                        nrow=2)
-
+  plt_mean_pop_wis,
+  plt_relative_mean,
+  plt_cov80,
+  nrow = 2
+)
 ```
 
 ```{r plot_joined_results_wis_diff, fig.width=12, fig.height=12, warning=FALSE, message=FALSE}
-results_diff = results %>% filter (
-      ahead %in% c(5, 12, 19, 26),
-      forecaster %in% c('Baseline', 'AR3+CHNG3'),
-    ) %>% group_by (
-      geo_value,
-      ahead,
-      forecaster,
-    ) %>% summarize (
-      mean_wis = mean(wis),
-      mean_cov80 = mean(cov80),
-    ) %>% ungroup (
-    ) %>% inner_join (
-      state_pop,
-      by='geo_value',
-    )
-joined_results_diff = inner_join (
-      results_diff %>% filter (
-        forecaster == 'Baseline',
-      ) %>% select (
-        -forecaster,
-        -state_with_pop,
-      ),
-      results_diff %>% filter (
-        forecaster == 'AR3+CHNG3',
-      ) %>% select (
-        -forecaster,
-        -state_with_pop,
-        -pop,
-      ),
-      by=c('geo_value', 'ahead'),
-      suffix=c('_Baseline', '_AC3')
-    ) %>% mutate (
-      improved_mean_wis = mean_wis_AC3 <= mean_wis_Baseline,
-      improved_mean_cov80 = mean_cov80_AC3 >= mean_cov80_Baseline,
-    )
+results_diff <- results %>%
+  filter(
+    ahead %in% c(5, 12, 19, 26),
+    forecaster %in% c("Baseline", "AR3+CHNG3"),
+  ) %>%
+  group_by(
+    geo_value,
+    ahead,
+    forecaster,
+  ) %>%
+  summarize(
+    mean_wis = mean(wis),
+    mean_cov80 = mean(cov80),
+  ) %>%
+  ungroup() %>%
+  inner_join(
+    state_pop,
+    by = "geo_value",
+  )
+joined_results_diff <- inner_join(
+  results_diff %>% filter(
+    forecaster == "Baseline",
+  ) %>% select(
+    -forecaster,
+    -state_with_pop,
+  ),
+  results_diff %>% filter(
+    forecaster == "AR3+CHNG3",
+  ) %>% select(
+    -forecaster,
+    -state_with_pop,
+    -pop,
+  ),
+  by = c("geo_value", "ahead"),
+  suffix = c("_Baseline", "_AC3")
+) %>% mutate(
+  improved_mean_wis = mean_wis_AC3 <= mean_wis_Baseline,
+  improved_mean_cov80 = mean_cov80_AC3 >= mean_cov80_Baseline,
+)
 
-plt = ggplot(joined_results_diff,
-             aes(x=pop,
-                 y=mean_wis_Baseline,
-                 xend=pop,
-                 yend=mean_wis_AC3,
-                 color=improved_mean_wis),
-    ) + geom_segment(
-      arrow=arrow(length=unit(0.1, 'cm')),
-    ) + scale_color_manual (
-      values = c(1, 4),
-    ) + scale_color_manual(
-      values=c('red', 'darkgreen'),
-      name='AR3+CHNG3 improves over Baseline',
-    ) + facet_wrap (
-      vars(ahead),
-      nrow=2
-    ) + xlab (
-      'Population'
-    ) + ylab ( 
-      'Mean WIS'
-    ) + ggtitle (
-      'Change in Mean WIS, from Baseline to AR3+CHNG3'
-    ) + scale_x_log10 (
-    ) + theme (
-      legend.position='bottom',
-    )
+plt <- ggplot(
+  joined_results_diff,
+  aes(
+    x = pop,
+    y = mean_wis_Baseline,
+    xend = pop,
+    yend = mean_wis_AC3,
+    color = improved_mean_wis
+  ),
+) +
+  geom_segment(
+    arrow = arrow(length = unit(0.1, "cm")),
+  ) +
+  scale_color_manual(
+    values = c(1, 4),
+  ) +
+  scale_color_manual(
+    values = c("red", "darkgreen"),
+    name = "AR3+CHNG3 improves over Baseline",
+  ) +
+  facet_wrap(
+    vars(ahead),
+    nrow = 2
+  ) +
+  xlab(
+    "Population"
+  ) +
+  ylab(
+    "Mean WIS"
+  ) +
+  ggtitle(
+    "Change in Mean WIS, from Baseline to AR3+CHNG3"
+  ) +
+  scale_x_log10() +
+  theme(
+    legend.position = "bottom",
+  )
 
 plt
 
 
-plt = ggplot(joined_results_diff,
-             aes(x=pop,
-                 y=mean_cov80_Baseline,
-                 xend=pop,
-                 yend=mean_cov80_AC3,
-                 color=improved_mean_cov80),
-    ) + geom_segment(
-      arrow=arrow(length=unit(0.1, 'cm')),
-    ) + scale_color_manual (
-      values = c(1, 4),
-    ) + scale_color_manual(
-      values=c('red', 'darkgreen'),
-      name='AR3+CHNG3 improves over Baseline',
-    ) + facet_wrap (
-      vars(ahead),
-      nrow=2
-    ) + xlab (
-      'Population'
-    ) + ylab (
-      'Prop. 80% intervals that covered truth'
-    ) + ggtitle (
-      'Change in 80% coverage, from Baseline to AR3+CHNG3'
-    ) + scale_x_log10 (
-    ) + theme (
-      legend.position='bottom',
-    )
+plt <- ggplot(
+  joined_results_diff,
+  aes(
+    x = pop,
+    y = mean_cov80_Baseline,
+    xend = pop,
+    yend = mean_cov80_AC3,
+    color = improved_mean_cov80
+  ),
+) +
+  geom_segment(
+    arrow = arrow(length = unit(0.1, "cm")),
+  ) +
+  scale_color_manual(
+    values = c(1, 4),
+  ) +
+  scale_color_manual(
+    values = c("red", "darkgreen"),
+    name = "AR3+CHNG3 improves over Baseline",
+  ) +
+  facet_wrap(
+    vars(ahead),
+    nrow = 2
+  ) +
+  xlab(
+    "Population"
+  ) +
+  ylab(
+    "Prop. 80% intervals that covered truth"
+  ) +
+  ggtitle(
+    "Change in 80% coverage, from Baseline to AR3+CHNG3"
+  ) +
+  scale_x_log10() +
+  theme(
+    legend.position = "bottom",
+  )
 
 plt
 ```

@@ -7,23 +7,27 @@ INCIDENCE_RATE <- 100000
 # They will be included in the national forecast, but not in the state-level forecast.
 exclude_geos <- tolower(c("vi"))
 # NOTE: While we make predictions on Tuesday, we want to label the file with a Monday, hence the -1's below.
-forecast_dates <- as.Date(Sys.getenv("FORECAST_DATE", unset=lubridate::today()))
+forecast_dates <- as.Date(Sys.getenv("FORECAST_DATE", unset = lubridate::today()))
 
 # Load state population data
-state_pop = readr::read_csv(here::here("code","state_pop.csv"), show_col_types = FALSE) %>% rename (
-  geo_value=state_id,
-  ) %>% select (
+state_pop <- readr::read_csv(here::here("code", "state_pop.csv"), show_col_types = FALSE) %>%
+  rename(
+    geo_value = state_id,
+  ) %>%
+  select(
     -state_name,
-    )
+  )
 
-get_preds_full = function(preds_state) {
-  preds_state$quantile = signif(preds_state$quantile, 4) # Eliminate rounding issues
+get_preds_full <- function(preds_state) {
+  preds_state$quantile <- signif(preds_state$quantile, 4) # Eliminate rounding issues
 
   # Transform to weekly incidence counts (not prop)
-  preds_state_processed = preds_state %>% inner_join (
-    state_pop,
-    by='geo_value',
-    ) %>% transmute (
+  preds_state_processed <- preds_state %>%
+    inner_join(
+      state_pop,
+      by = "geo_value",
+    ) %>%
+    transmute(
       geo_value = geo_value,
       ahead = ahead,
       forecaster = "flu-model",
@@ -33,32 +37,35 @@ get_preds_full = function(preds_state) {
       forecast_date = forecast_date,
       target = sprintf("%d wk ahead inc flu hosp", (ahead - 4) / 7 + 1),
       target_end_date = target_end_date,
-      location=state_code,
-      type='quantile',
-      quantile=quantile,
-      value=value*pop/INCIDENCE_RATE*7,
-      )
+      location = state_code,
+      type = "quantile",
+      quantile = quantile,
+      value = value * pop / INCIDENCE_RATE * 7,
+    )
 
   # US-level forecasts
-  preds_us_unsorted = preds_state_processed %>% group_by (
+  preds_us_unsorted <- preds_state_processed %>%
+    group_by(
+      forecast_date,
+      target,
+      target_end_date,
+      type,
+      quantile,
+    ) %>%
+    summarize(
+      location = "US",
+      value = sum(value),
+    ) %>%
+    ungroup()
+  preds_us_list <- preds_us_unsorted %>% group_split(
     forecast_date,
     target,
     target_end_date,
     type,
-    quantile,
-    ) %>% summarize (
-      location='US',
-      value=sum(value),
-      ) %>% ungroup
-  preds_us_list = preds_us_unsorted %>% group_split (
-    forecast_date,
-    target,
-    target_end_date,
-    type,
-    )
+  )
   for (idx in 1:length(preds_us_list)) {
-    preds_us_list[[idx]]$quantile = sort(preds_us_list[[idx]]$quantile)
-    preds_us_list[[idx]]$value = sort(preds_us_list[[idx]]$value)
+    preds_us_list[[idx]]$quantile <- sort(preds_us_list[[idx]]$quantile)
+    preds_us_list[[idx]]$value <- sort(preds_us_list[[idx]]$value)
   }
   preds_us <- bind_rows(preds_us_list)
   preds_us$data_source <- "hhs"
@@ -75,19 +82,21 @@ get_preds_full = function(preds_state) {
 }
 
 preds_state <- readr::read_csv(
-    sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries-prediction-state.csv', forecast_dates - 1),
+  sprintf("data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries-prediction-state.csv", forecast_dates - 1),
 )
 preds_full <- get_preds_full(preds_state)
 
 readr::write_csv(preds_full,
-                 sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries-full-cols.csv', forecast_dates - 1),
-                 # quote='all' is important to make sure the location column is quoted.
-                 quote='all')
+  sprintf("data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries-full-cols.csv", forecast_dates - 1),
+  # quote='all' is important to make sure the location column is quoted.
+  quote = "all"
+)
 
 drops <- c("incidence_period", "geo_value", "ahead", "forecaster", "data_source", "signal")
 preds_full <- preds_full[, !(names(preds_full) %in% drops)]
 
 readr::write_csv(preds_full,
-                 sprintf('data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries.csv', forecast_dates - 1),
-                 # quote='all' is important to make sure the location column is quoted.
-                 quote='all')
+  sprintf("data-forecasts/CMU-TimeSeries/%s-CMU-TimeSeries.csv", forecast_dates - 1),
+  # quote='all' is important to make sure the location column is quoted.
+  quote = "all"
+)
