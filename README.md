@@ -1,19 +1,14 @@
-# flu-hosp-forecast
+# Delphi Flu Hospitalization Production Forecaster
 
-Flu hospitalization forecaster for the Delphi team.
 Submitted to the [Flusight repo](https://github.com/cmu-delphi/Flusight-forecast-data).
+
+The definition for the main current forecaster is in `train_model.R`.
 
 ## Usage
 
 You can use the CLI utility in the `code/` directory.
 
 ```sh
-# Setup Python.
-cd code
-python3 -m venv venv
-pip install -r requirements.txt
-source venv/bin/activate
-
 # Run the forecasts and make an evaluation notebook (using exploration cache)
 python forecaster.py forecast postprocess notebook
 
@@ -27,41 +22,39 @@ FLU_CACHE="production" python forecaster.py forecast postprocess notebook
 python forecaster.py --help
 ```
 
-# Installation
+## Installation
 
-## Installing System Dependencies
-
-The following instructions were tested on Ubuntu 20.04, with R 4.2.2.
+The following instructions were tested on Ubuntu 20.04 with R 4.2.2.
+After cloning this repo and `cd`ing into it, run the following commands:
 
 ```sh
-# Install package dependencies
-sudo apt-get install libudunits2-dev \
-    libgdal-dev \
-    libgeos-dev \
-    libproj-dev \
-    gfortran \
-    libblas-dev \
-    liblapack-dev \
-    libcairo2-dev \
-    libglpk-dev \
-    libxt-dev \
-    pandoc \
-    python3 \
-    python-is-python3 \
-    libharfbuzz-dev \
-    libfribidi-dev \
-    libbz2-dev
+# Set your Github PAT as an env var in your profile
+# https://docs.github.com/en/enterprise-server@3.9/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens
+# (needed because some of Delphi's dependencies are large and will overload the unauthenticated Github API)
+echo "GITHUB_PAT=<your token>" | tee -a ~/.zprofile
 
-# Install R 4.2.2 https://cloud.r-project.org/bin/linux/ubuntu/
+# Setup Python3
+cd code
+make install-system-deps
+make install-py-deps
 
-#### Install Gurobi (skip below, because this repo no longer requires this)
+# Install the latest R if you don't have it
+# https://cloud.r-project.org/bin/linux/ubuntu/
+make install-r
 
+# Install R dependencies
+make install-r-deps
+```
+
+### Installing Gurobi
+
+```sh
 # Get a Gurobi license https://www.gurobi.com/downloads/free-academic-license/
 # Download Gurobi
 wget https://packages.gurobi.com/9.5/gurobi9.5.2_linux64.tar.gz
 tar xzvf gurobi9.5.2_linux64.tar.gz
 sudo mv gurobi952 /opt/
-# Will require a campus network or full VPN.
+# grbgetkey requires a campus network or full VPN
 /opt/gurobi952/linux64/bin/grbgetkey <your key hash>
 # It will ask you to enter a path to a license file, I recommend ~/.gurobi/gurobi.lic
 
@@ -77,23 +70,4 @@ echo 'R_LD_LIBRARY_PATH="${R_LD_LIBRARY_PATH}:${R_GUROBI_LIBRARY_PATH}"' | sudo 
 Rscript -e 'install.packages("/opt/gurobi952/linux64/R/gurobi_9.5-2_R_4.2.0.tar.gz", repos=NULL)'
 # Test the installation
 Rscript -e 'library(gurobi)'
-
-#### End Install Gurobi
-
-# Clone this repo
-git clone https://github.com/cmu-delphi/hospitalization-forecaster
-cd hospitalization-forecaster
-
-# Set your Github PAT as an env var in your profile
-# https://docs.github.com/en/enterprise-server@3.5/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token
-# (needed because some of Delphi's dependencies are large and will overload the unauthenticated Github API)
-echo "GITHUB_PAT=<your token>" | tee -a ~/.zprofile
-
-# Setup a Python virtual env
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-
-# Install R dependencies (takes a long time, optionally see r2u instructions below)
-python forecaster.py install
 ```

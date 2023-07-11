@@ -2,12 +2,12 @@
 venv-py:
 	@python -m venv venv
 
-.PHONY: install-py
-install-py: venv-py
+.PHONY: install-py-deps
+install-py-deps: venv-py
 	@venv/bin/pip install wheel && venv/bin/pip install -r requirements.txt
 
-.PHONY: install-system-dependencies
-install-system-dependencies:
+.PHONY: install-system-deps
+install-system-deps:
 	@sudo apt-get update && apt-get install -y \
 		libproj-dev \
 		gfortran \
@@ -26,7 +26,8 @@ install-system-dependencies:
 		libxml2-dev \
 		libudunits2-dev \
 		libgdal-dev \
-		libgeos-dev
+		libgeos-dev \ 
+		libproj-dev
 
 .PHONY: install-r
 install-r:
@@ -42,10 +43,10 @@ install-r:
 	@# add the R 4.0 repo from CRAN -- adjust 'focal' to 'groovy' or 'bionic' as needed
 	@sudo add-apt-repository "deb https://cloud.r-project.org/bin/linux/ubuntu $(lsb_release -cs)-cran40/"
 
-.PHONY: install-renv	
+.PHONY: install-renv
 install-renv: 
-	@Rscript -e "install.packages(c('pak', 'renv'))"
+	@Rscript -e "install.packages(c('pak', 'renv', 'rspm'))"
 
-.PHONY: install-r-packages
-install-r-packages: install-renv
-	@Rscript -e "renv::restore()"
+.PHONY: install-r-deps
+install-r-deps: install-renv
+	@Rscript -e "rspm::enable(); renv::restore()"
