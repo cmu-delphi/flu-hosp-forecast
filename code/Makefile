@@ -27,7 +27,8 @@ install-system-deps:
 		libudunits2-dev \
 		libgdal-dev \
 		libgeos-dev \ 
-		libproj-dev
+		libproj-dev \
+		apt-file
 
 .PHONY: install-r
 install-r:
