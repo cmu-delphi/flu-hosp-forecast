@@ -8,7 +8,7 @@ install-py-deps: venv-py
 
 .PHONY: install-system-deps
 install-system-deps:
-	@sudo apt-get update && apt-get install -y \
+	-@sudo apt-get update && apt-get install -y \
 		libproj-dev \
 		gfortran \
 		libblas-dev \
@@ -26,9 +26,8 @@ install-system-deps:
 		libxml2-dev \
 		libudunits2-dev \
 		libgdal-dev \
-		libgeos-dev \ 
-		libproj-dev \
-		apt-file
+		libgeos-dev \
+		apt-file;
 
 .PHONY: install-r
 install-r:
