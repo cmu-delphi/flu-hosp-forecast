@@ -4,23 +4,24 @@
 # submissions from the Flusight repo:
 #
 #   https://github.com/cdcepi/Flusight-forecast-data/tree/master/data-forecasts/CMU-TimeSeries
-# 
-# There are no inputs to this scrpit, instead there is a hard-coded list of
+#
+# There are no inputs to this script, instead there is a hard-coded list of
 # forecast dates to be generated at the top. The output is a set of CSV files
 # with the path format
 #
 #   "data-forecasts/direction-predictions/generated-{today}-as-of-{actual_forecast_date}/{nominal_forecast_date}-CMU-TimeSeries.csv".
 #
 # See the comments around make_retrospective_forecast() for details about the
-# forecast dates. The CSV files have the format: 
+# forecast dates. The CSV files have the format, which is the submission format
+# requested by the CDC:
 #
 #   "forecast_date","target","location","type","type_id","value"
 #
-# This script is a modified version of the naive_direction_forecaster.R script.
+# This script was made by modifying the naive_direction_forecaster.R script.
 # It's a hacky one-off script and should probably not be used for future work.
 # Some of its changes may be worth porting back to naive_direction_forecaster.R
 # at some point.
-# 
+#
 library(checkmate)
 library(dplyr)
 library(glue)
@@ -42,25 +43,17 @@ source(here::here("code", "approx-cdf.R"))
 retrospective_forecast_dates <- seq(as.Date("2022-10-17"), as.Date("2022-12-19"), by = "week")
 
 # The code below was extracted from postprocess_forecasts.R
-INCIDENCE_RATE <- 100000
-# NOTE: VI data has been just zeroes for a long time, so we exclude it.
-# Add extra states to this list if needed.
-# They will be included in the national forecast, but not in the state-level forecast.
-exclude_geos <- tolower(c("vi"))
-# NOTE: While we make predictions on Tuesday, we want to label the file with a Monday, hence the -1's below.
+incidence_rate <- 100000
 
-# Load state population data
+
 # Will need this to convert from state_code (01) to state_id (al)
 state_pop <- readr::read_csv(here::here("code", "state_pop.csv"), show_col_types = FALSE) %>%
-  rename(
-    geo_value = state_id,
-  ) %>%
-  select(
-    -state_name,
-  )
+  rename(geo_value = state_id) %>%
+  select(-state_name)
 
 get_preds_full <- function(preds_state) {
-  preds_state$quantile <- signif(preds_state$quantile, 4) # Eliminate rounding issues
+  # Eliminate rounding issues
+  preds_state$quantile <- signif(preds_state$quantile, 4)
 
   # Transform to weekly incidence counts (not prop)
   preds_state_processed <- preds_state %>%
@@ -81,7 +74,7 @@ get_preds_full <- function(preds_state) {
       location = state_code,
       type = "quantile",
       quantile = quantile,
-      value = value * pop / INCIDENCE_RATE * 7,
+      value = value * pop / incidence_rate * 7,
     )
 
   # US-level forecasts
@@ -104,7 +97,7 @@ get_preds_full <- function(preds_state) {
     target_end_date,
     type,
   )
-  for (idx in 1:length(preds_us_list)) {
+  for (idx in seq_along(preds_us_list)) {
     preds_us_list[[idx]]$quantile <- sort(preds_us_list[[idx]]$quantile)
     preds_us_list[[idx]]$value <- sort(preds_us_list[[idx]]$value)
   }
@@ -124,16 +117,17 @@ get_preds_full <- function(preds_state) {
 
 # End postprocess_forecasts.R
 
-
-# Get predictions from Flusight repo and format slightly
-# Resulting tibble has columns:
-#   geo_value, value, ahead, quantile
+# Get predictions from Flusight repo and format slightly. The resulting tibble
+# has the columns: geo_value, value, ahead, quantile
 get_flu_predictions <- function(forecast_date) {
-  forecasts_web <- read_csv(glue::glue("https://raw.githubusercontent.com/cdcepi/Flusight-forecast-data/master/data-forecasts/CMU-TimeSeries/{forecast_date}-CMU-TimeSeries.csv")) %>%
+  forecasts_web <- read_csv(
+    glue::glue(
+      "https://raw.githubusercontent.com/cdcepi/Flusight-forecast-data/master/data-forecasts/CMU-TimeSeries/",
+      "{forecast_date}-CMU-TimeSeries.csv"
+    )
+  ) %>%
     # Convert "x wk ahead inc flu hosp" to "x" and then to "x*7+4"
-    mutate(
-      ahead = (as.double((str_replace(target, " wk ahead inc flu hosp", ""))) - 1) * 7 + 4
-    ) %>%
+    mutate(ahead = (as.double((str_replace(target, " wk ahead inc flu hosp", ""))) - 1) * 7 + 4) %>%
     inner_join(state_pop, by = c("location" = "state_code")) %>%
     # Find the "US"-marked locations and give them the state_id "us"
     select(c("geo_value", "value", "ahead", "quantile"))
@@ -143,7 +137,8 @@ get_flu_predictions <- function(forecast_date) {
 
 augmented_location_data <- fetch_updating_resource(
   function() {
-    read_csv("https://raw.githubusercontent.com/cdcepi/Flusight-forecast-data/master/data-locations/locations.csv",
+    read_csv(
+      glue::glue("https://raw.githubusercontent.com/cdcepi/Flusight-forecast-data/master/data-locations/locations.csv"),
       col_types = cols(
         abbreviation = col_character(),
         location = col_character(),
@@ -168,11 +163,11 @@ augmented_location_data <- fetch_updating_resource(
 
 # These locations will not be evaluated, and I believe that they do not want
 # submissions for these locations. (And there may not be the threshold/any data
-# for them in the location data above.) exclude_geos is set in
-# postprocess_forecasts.R
-nonevaluated_geo_values <- c(c("as", "gu", "mp", "vi"), exclude_geos)
-nonevaluated_locations <- c("60", "66", "69", "78")
-
+# for them in the location data above.)
+nonevaluated_geo_values <- c("as", "gu", "mp", "vi")
+nonevaluated_locations <- state_pop %>%
+  filter(geo_value %in% nonevaluated_geo_values) %>%
+  pull(state_code)
 
 # The forecasts were generated on Tuesdays for Mondays, so the
 # actual_forecast_date is the day after the nominal_forecast_date. (We change
@@ -181,11 +176,8 @@ nonevaluated_locations <- c("60", "66", "69", "78")
 make_retrospective_forecast <- function(nominal_forecast_date) {
   assert_that(inherits(nominal_forecast_date, c("Date", "POSIXt")), msg = "blah")
 
-  print(glue("Generating retrospective forecast for {nominal_forecast_date}"))
   actual_forecast_date <- nominal_forecast_date + 1L
-
   forecaster_cached_output <- get_flu_predictions(nominal_forecast_date)
-  print(glue("Downloaded forecasts..."))
   preds_state_prop_7dav <- forecaster_cached_output %>%
     {
       out <- .
@@ -223,9 +215,7 @@ make_retrospective_forecast <- function(nominal_forecast_date) {
   # `train_model.R` / to the result of writing `train_model.R`'s `preds_full` then
   # reading it back in with `read_csv`.
   preds_full <- get_preds_full(preds_state_prop_7dav)
-  print(glue("Processed to preds_full..."))
 
-  print(glue("Downloading recent history..."))
   # We need to combine the quantile forecasts with recent observations in order to
   # do direction calculations; fetch that data now:
   short_snapshot <-
@@ -270,11 +260,12 @@ make_retrospective_forecast <- function(nominal_forecast_date) {
     as.numeric(actual_forecast_date - as.Date("2020-10-16")) / (365 + 1 / 4 - 1 / 100 + 1 / 400) *
       # say there's one wave/season per year
       1 *
-      # say states from separate HHS Regions are "separate" enough to count as different data points, while those within the same region aren't separate enough; 10 HHS Regions = 10 buckets
+      # say states from separate HHS Regions are "separate" enough to count as
+      # different data points, while those within the same region aren't
+      # separate enough; 10 HHS Regions = 10 buckets
       10
   )
 
-  print(glue("About to make unfiltered direction predictions..."))
   unfiltered_direction_predictions <-
     preds_full %>%
     filter(!location %in% .env$nonevaluated_locations) %>%
@@ -308,9 +299,7 @@ make_retrospective_forecast <- function(nominal_forecast_date) {
     group_by(forecast_date, location) %>%
     # mix with uniform
     mutate(
-      value =
-        (1 - uniform_forecaster_weight) * value +
-          uniform_forecaster_weight * 1 / n()
+      value = (1 - uniform_forecaster_weight) * value + uniform_forecaster_weight * 1 / n()
     ) %>%
     mutate(target = "2 wk flu hosp rate change") %>%
     select(forecast_date, target, location, type, type_id, value)
@@ -330,20 +319,27 @@ make_retrospective_forecast <- function(nominal_forecast_date) {
         pull(location)
     )
 
-  print(glue("About to make filtered direction predictions..."))
   filtered_direction_predictions <- unfiltered_direction_predictions %>%
     filter(!location %in% excluded_locations)
 
   # Sanity check that the output probabilities sum to 1.
   stopifnot(
-    all(abs(1 -
-      filtered_direction_predictions %>%
-      group_by(forecast_date, target, location) %>%
-      summarize(value = sum(value)) %>%
-      pull(value)) < 1e-8)
+    all(
+      abs(
+        1 - filtered_direction_predictions %>%
+          group_by(forecast_date, target, location) %>%
+          summarize(value = sum(value)) %>%
+          pull(value)
+      ) < 1e-8
+    )
   )
 
-  dir_path = here::here("code", "data-forecasts", "direction-predictions", glue("generated-{Sys.Date()}-as-of-{actual_forecast_date}"))
+  dir_path <- here::here(
+    "code",
+    "data-forecasts",
+    "direction-predictions",
+    glue("generated-{Sys.Date()}-as-of-{actual_forecast_date}")
+  )
   dir.create(dir_path, recursive = TRUE, showWarnings = FALSE)
 
   write_csv(
