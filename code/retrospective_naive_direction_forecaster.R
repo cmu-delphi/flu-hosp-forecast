@@ -42,16 +42,49 @@ source(here::here("code", "approx-cdf.R"))
 # These are the dates for which we will produce retrospective forecasts.
 retrospective_forecast_dates <- seq(as.Date("2022-10-17"), as.Date("2022-12-19"), by = "week")
 
-# The code below was extracted from postprocess_forecasts.R
+# get_preds_full was extracted from postprocess_forecasts.R and modified.
 incidence_rate <- 100000
-
 
 # Will need this to convert from state_code (01) to state_id (al)
 state_pop <- readr::read_csv(here::here("code", "state_pop.csv"), show_col_types = FALSE) %>%
   rename(geo_value = state_id) %>%
   select(-state_name)
 
-get_preds_full <- function(preds_state) {
+# These locations will not be evaluated, and I believe that they do not want
+# submissions for these locations. (And there may not be the threshold/any data
+# for them in the location data above.)
+nonevaluated_geo_values <- c("as", "gu", "mp", "vi")
+nonevaluated_locations <- state_pop %>%
+  filter(geo_value %in% nonevaluated_geo_values) %>%
+  pull(state_code)
+
+augmented_location_data <- fetch_updating_resource(
+  function() {
+    read_csv(
+      glue::glue("https://raw.githubusercontent.com/cdcepi/Flusight-forecast-data/master/data-locations/locations.csv"),
+      col_types = cols(
+        abbreviation = col_character(),
+        location = col_character(),
+        location_name = col_character(),
+        population = col_integer(),
+        count_rate1per100k = col_integer(),
+        count_rate2per100k = col_integer()
+      )
+    )
+  },
+  function(response) {
+    assert_tibble(response)
+  },
+  here::here("cache", "location_data")
+) %>%
+  mutate(
+    large_change_count_thresh = pmax(count_rate2per100k, 40L),
+    nonlarge_change_count_thresh = pmax(count_rate1per100k, 20L),
+    geo_type = dplyr::if_else(location == "US", "nation", "state"),
+    geo_value = dplyr::if_else(location == "US", "us", tolower(covidcast::fips_to_abbr(location)))
+  )
+
+get_preds_full2 <- function(preds_state, exclude_geos = nonevaluated_geo_values) {
   # Eliminate rounding issues
   preds_state$quantile <- signif(preds_state$quantile, 4)
 
@@ -74,7 +107,7 @@ get_preds_full <- function(preds_state) {
       location = state_code,
       type = "quantile",
       quantile = quantile,
-      value = value * pop / incidence_rate * 7,
+      value = value,
     )
 
   # US-level forecasts
@@ -115,7 +148,6 @@ get_preds_full <- function(preds_state) {
   return(preds_full)
 }
 
-# End postprocess_forecasts.R
 
 # Get predictions from Flusight repo and format slightly. The resulting tibble
 # has the columns: geo_value, value, ahead, quantile
@@ -135,40 +167,6 @@ get_flu_predictions <- function(forecast_date) {
 }
 
 
-augmented_location_data <- fetch_updating_resource(
-  function() {
-    read_csv(
-      glue::glue("https://raw.githubusercontent.com/cdcepi/Flusight-forecast-data/master/data-locations/locations.csv"),
-      col_types = cols(
-        abbreviation = col_character(),
-        location = col_character(),
-        location_name = col_character(),
-        population = col_integer(),
-        count_rate1per100k = col_integer(),
-        count_rate2per100k = col_integer()
-      )
-    )
-  },
-  function(response) {
-    assert_tibble(response)
-  },
-  here::here("cache", "location_data")
-) %>%
-  mutate(
-    large_change_count_thresh = pmax(count_rate2per100k, 40L),
-    nonlarge_change_count_thresh = pmax(count_rate1per100k, 20L),
-    geo_type = dplyr::if_else(location == "US", "nation", "state"),
-    geo_value = dplyr::if_else(location == "US", "us", tolower(covidcast::fips_to_abbr(location)))
-  )
-
-# These locations will not be evaluated, and I believe that they do not want
-# submissions for these locations. (And there may not be the threshold/any data
-# for them in the location data above.)
-nonevaluated_geo_values <- c("as", "gu", "mp", "vi")
-nonevaluated_locations <- state_pop %>%
-  filter(geo_value %in% nonevaluated_geo_values) %>%
-  pull(state_code)
-
 # The forecasts were generated on Tuesdays for Mondays, so the
 # actual_forecast_date is the day after the nominal_forecast_date. (We change
 # this from the way it is handled in postprocess_forecasts.R so that the dates
@@ -176,9 +174,12 @@ nonevaluated_locations <- state_pop %>%
 make_retrospective_forecast <- function(nominal_forecast_date) {
   assert_that(inherits(nominal_forecast_date, c("Date", "POSIXt")), msg = "blah")
 
-  actual_forecast_date <- nominal_forecast_date + 1L
+  # We started forecasting on Tuesday at some point, it's not clear when,
+  # so to be safe, we changed actual and nominal to match.
+  # actual_forecast_date <- nominal_forecast_date + 1L
+  actual_forecast_date <- nominal_forecast_date
   forecaster_cached_output <- get_flu_predictions(nominal_forecast_date)
-  preds_state_prop_7dav <- forecaster_cached_output %>%
+  preds_state <- forecaster_cached_output %>%
     {
       out <- .
       # Reproduce evalcast post-processing because we're working around it reading
@@ -211,10 +212,7 @@ make_retrospective_forecast <- function(nominal_forecast_date) {
       out
     }
 
-  # TODO verify whether this is indeed identical to one of the `preds_full`s in
-  # `train_model.R` / to the result of writing `train_model.R`'s `preds_full` then
-  # reading it back in with `read_csv`.
-  preds_full <- get_preds_full(preds_state_prop_7dav)
+  preds_full <- get_preds_full2(preds_state)
 
   # We need to combine the quantile forecasts with recent observations in order to
   # do direction calculations; fetch that data now:
@@ -244,7 +242,7 @@ make_retrospective_forecast <- function(nominal_forecast_date) {
   reference_7d_counts <-
     short_snapshot %>%
     # reference by forecast Monday - 2L = Saturday, else whatever is soonest before then
-    filter(time_value <= nominal_forecast_date - 2L) %>%
+    # filter(time_value <= nominal_forecast_date - 2L) %>%
     group_by(geo_value) %>%
     complete(time_value = full_seq(time_value, 1L)) %>%
     slice_max(time_value, n = 7L) %>%
@@ -301,6 +299,7 @@ make_retrospective_forecast <- function(nominal_forecast_date) {
     mutate(
       value = (1 - uniform_forecaster_weight) * value + uniform_forecaster_weight * 1 / n()
     ) %>%
+    ungroup() %>%
     mutate(target = "2 wk flu hosp rate change") %>%
     select(forecast_date, target, location, type, type_id, value)
 
