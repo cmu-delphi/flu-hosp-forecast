@@ -174,10 +174,10 @@ get_flu_predictions <- function(forecast_date) {
 make_retrospective_forecast <- function(nominal_forecast_date) {
   assert_that(inherits(nominal_forecast_date, c("Date", "POSIXt")), msg = "blah")
 
-  # We started forecasting on Tuesday at some point, it's not clear when,
-  # so to be safe, we changed actual and nominal to match.
-  # actual_forecast_date <- nominal_forecast_date + 1L
+  # We started forecasting on Tuesday at some point (late January 2023), so the
+  # actual_forecast_date had to be bumped up by one, but not in 2022. 
   actual_forecast_date <- nominal_forecast_date
+  # actual_forecast_date <- nominal_forecast_date + 1L
   forecaster_cached_output <- get_flu_predictions(nominal_forecast_date)
   preds_state <- forecaster_cached_output %>%
     {
@@ -242,7 +242,7 @@ make_retrospective_forecast <- function(nominal_forecast_date) {
   reference_7d_counts <-
     short_snapshot %>%
     # reference by forecast Monday - 2L = Saturday, else whatever is soonest before then
-    # filter(time_value <= nominal_forecast_date - 2L) %>%
+    filter(time_value <= nominal_forecast_date - 2L) %>%
     group_by(geo_value) %>%
     complete(time_value = full_seq(time_value, 1L)) %>%
     slice_max(time_value, n = 7L) %>%
