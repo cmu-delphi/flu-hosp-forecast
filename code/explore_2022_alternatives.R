@@ -3,8 +3,8 @@ library(dplyr)
 library(tibble)
 library(evalcast)
 library(purrr)
-source(here::here("code", "quantgen.R'"))
-source(here::here("code", "ensemble.R"))
+source(here::here("code", "R", "quantgen.R'"))
+source(here::here("code", "R", "ensemble.R"))
 
 #### Duplicates a lot of code from other files in this repo as this is meant to
 #### be a one-off analysis and it was easier. We may want to restructure things

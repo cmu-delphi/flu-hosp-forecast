@@ -9,8 +9,7 @@ library(epidatr)
 library(epiprocess)
 devtools::load_all(here::here("code", "direction.forecaster"), export_all = FALSE)
 
-source(here::here("code", "approx-cdf.R"))
-# source(here::here("code", "postprocess_forecasts.R"))
+source(here::here("code", "R", "approx-cdf.R"))
 
 
 # The code below is from postprocess_forecasts.R

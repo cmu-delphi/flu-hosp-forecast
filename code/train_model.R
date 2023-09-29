@@ -2,8 +2,8 @@ library(dplyr)
 library(tibble)
 library(covidcast)
 library(evalcast)
-source(here::here("code", "quantgen.R"))
-source(here::here("code", "ensemble.R"))
+source(here::here("code", "R", "quantgen.R"))
+source(here::here("code", "R", "ensemble.R"))
 
 # This script generates forecasts for today, but production runs shouldn't run
 # this directly; instead, they should run forecaster.py, which sets the

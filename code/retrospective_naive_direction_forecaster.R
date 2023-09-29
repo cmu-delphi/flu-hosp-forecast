@@ -36,7 +36,7 @@ library(epidatr)
 library(epiprocess)
 devtools::load_all(here::here("code", "direction.forecaster"), export_all = FALSE)
 
-source(here::here("code", "approx-cdf.R"))
+source(here::here("code", "R", "approx-cdf.R"))
 
 
 # These are the dates for which we will produce retrospective forecasts.
