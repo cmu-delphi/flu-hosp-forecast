@@ -1,6 +1,6 @@
 library(pipeR)
-library(shiny)
 library(plotly)
+library(shiny)
 
 if (!exists("common_set_evaluations")) {
   source("explore_2022_alternatives.R")

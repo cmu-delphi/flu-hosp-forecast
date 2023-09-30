@@ -1,8 +1,8 @@
-library(quantgen)
-library(tidyr)
 library(assertthat)
-library(rlang)
 library(dplyr)
+library(quantgen)
+library(rlang)
+library(tidyr)
 
 #' Helper functions
 
@@ -102,17 +102,25 @@ zero_impute_matx <- function(matx, zero_impute) {
 #' Performs predictions by setting newx to the latest data at which all
 #' signals available; but also saves predictions where we use the latest data
 #' per feature.
-quantgen_forecaster <- function(df_list, forecast_date, signals, incidence_period,
-                                ahead, geo_type,
-                                n = 4 * ifelse(incidence_period == "day", 7, 1),
-                                lags = 0,
-                                tau = c(0.025, 0.1, 0.25, 0.5, 0.75, 0.9, 0.975),
-                                transform = NULL, inv_trans = NULL,
-                                featurize = NULL,
-                                resample = NULL,
-                                zero_impute = NULL,
-                                verbose = FALSE, n_core = 1, debug = NULL,
-                                ...) {
+quantgen_forecaster <- function(
+    df_list,
+    forecast_date,
+    signals,
+    incidence_period,
+    ahead,
+    geo_type,
+    n = 4 * ifelse(incidence_period == "day", 7, 1),
+    lags = 0,
+    tau = c(0.025, 0.1, 0.25, 0.5, 0.75, 0.9, 0.975),
+    transform = NULL,
+    inv_trans = NULL,
+    featurize = NULL,
+    resample = NULL,
+    zero_impute = NULL,
+    verbose = FALSE,
+    n_core = 1,
+    debug = NULL,
+    ...) {
   if (n_core > 1) {
     n_core <- min(n_core, parallel::detectCores())
   } else {
@@ -296,20 +304,32 @@ quantgen_forecaster <- function(df_list, forecast_date, signals, incidence_perio
 # performed across all geos simultaneously, or if the latest response time
 # value is the same across all geos. Requires `ahead` to be specified by name.
 make_forecaster_account_for_response_latency <- function(forecaster) {
-  assert_that(is_function(forecaster) && any(c("ahead", "...") %in% fn_fmls_names(forecaster)))
-  ##
-  return(function(df_list, forecast_date, ..., incidence_period, ahead) {
-    assert_that(identical(incidence_period, "day"))
-    ##
-    max_response_time_value <- max(df_list[[1L]][["time_value"]])
-    response_latency <- as.integer(forecast_date - max_response_time_value)
-    ahead_of_latest_response <- ahead + response_latency
-    forecast_relative_to_latest_response <- forecaster(df_list = df_list, forecast_date = forecast_date, ..., ahead = ahead_of_latest_response)
-    assert_that(!"target_end_date" %in% names(forecast_relative_to_latest_response))
-    forecast <- forecast_relative_to_latest_response %>%
-      mutate(ahead = .data$ahead - .env$response_latency)
-    return(forecast)
-  })
+  assert_that(
+    is_function(forecaster) &&
+      any(c("ahead", "...") %in% fn_fmls_names(forecaster))
+  )
+
+  return(
+    function(df_list, forecast_date, ..., incidence_period, ahead) {
+      assert_that(identical(incidence_period, "day"))
+
+      max_response_time_value <- max(df_list[[1L]][["time_value"]])
+      response_latency <- as.integer(forecast_date - max_response_time_value)
+      ahead_of_latest_response <- ahead + response_latency
+      forecast_relative_to_latest_response <- forecaster(
+        df_list = df_list,
+        forecast_date = forecast_date,
+        ...,
+        ahead = ahead_of_latest_response
+      )
+      assert_that(
+        !"target_end_date" %in% names(forecast_relative_to_latest_response)
+      )
+      forecast <- forecast_relative_to_latest_response %>%
+        mutate(ahead = .data$ahead - .env$response_latency)
+      return(forecast)
+    }
+  )
 }
 
 match_scalar_fn_arg <- function(arg) {

@@ -1,13 +1,13 @@
-library(dplyr)
-library(tibble)
-library(covidcast)
-library(evalcast)
-source(here::here("code", "R", "quantgen.R"))
-source(here::here("code", "R", "ensemble.R"))
-
 # This script generates forecasts for today, but production runs shouldn't run
 # this directly; instead, they should run forecaster.py, which sets the
 # FLU_CACHE to 'production'.
+
+library(covidcast)
+library(dplyr)
+library(evalcast)
+library(tibble)
+source(here::here("code", "R", "quantgen.R"))
+source(here::here("code", "R", "ensemble.R"))
 
 ###############################################################################
 # SETUP                                                                       #
@@ -67,20 +67,20 @@ signals_ar <- tibble::tibble(
 )
 
 production_forecaster_reference <- list(
-  forecaster = quantgen_forecaster %>%
-    make_forecaster_with_prespecified_args(
-      signals = signals_ar,
-      incidence_period = "day",
-      ahead = ahead,
-      geo_type = geo_type,
-      tau = tau,
-      n = ntrain_reference,
-      lags = lags,
-      lambda = 0,
-      nonneg = TRUE,
-      sort = TRUE,
-      lp_solver = "gurobi"
-    ) %>%
+  forecaster = make_forecaster_with_prespecified_args(
+    forecaster = quantgen_forecaster,
+    signals = signals_ar,
+    incidence_period = "day",
+    ahead = ahead,
+    geo_type = geo_type,
+    tau = tau,
+    n = ntrain_reference,
+    lags = lags,
+    lambda = 0,
+    nonneg = TRUE,
+    sort = TRUE,
+    lp_solver = "gurobi"
+  ) %>%
     make_named_forecaster("reference"),
   signals = signals_ar
 )
@@ -106,7 +106,10 @@ production_forecaster_nowindow_latencyfix <- list(
 )
 
 ens1 <- make_ensemble_forecaster(
-  list(production_forecaster_reference, production_forecaster_nowindow_latencyfix),
+  list(
+    production_forecaster_reference,
+    production_forecaster_nowindow_latencyfix
+  ),
   offline_signal_dir = offline_signal_dir
 ) %>% make_caching_forecaster("ens1", forecast_cache_dir)
 

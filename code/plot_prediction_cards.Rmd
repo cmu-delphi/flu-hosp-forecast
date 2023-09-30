@@ -6,16 +6,15 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE, echo=FALSE}
-library(evalcast)
-library(zookeeper)
-library(lubridate)
-library(tidyverse)
-library(readr)
 library(aws.s3)
 library(covidcast)
-library(readr)
-library(pipeR)
+library(evalcast)
+library(lubridate)
 library(magrittr)
+library(pipeR)
+library(readr)
+library(tidyverse)
+library(zookeeper)
 
 #### BEGIN copied/adapted from cmu-delphi/hospitalization-forecaster
 source("plotting.R")
@@ -40,16 +39,6 @@ plot_nation_forecasters_ <- function(df) {
 
 predictions_file <- here::here("code", "data-forecasts", "CMU-TimeSeries", sprintf("%s-CMU-TimeSeries-full-cols.csv", forecast_date))
 flu_forecasts <- read_csv(predictions_file, show_col_types = FALSE)
-# hhs_data <- covidcast_signal(data_source = "hhs", signal = "confirmed_admissions_influenza_1d_7dav", geo_type = "state", start_day = "2021-11-15") %>%
-#             as_tibble %>% group_by(geo_value) %>% summarize(hhs_mean = mean(value))
-# chng_data <- covidcast_signal(data_source = "chng", signal = "smoothed_adj_outpatient_flu", geo_type = "state", start_day = "2021-11-15") %>%
-#              as_tibble %>%
-#              left_join(hhs_data, by = "geo_value") %>%
-#              group_by(geo_value) %>%
-#              mutate(scaled_value = value / mean(value) * hhs_mean)
-# g <- plot_trajectory(flu_forecasts, "state", start_day = "2021-11-15", ncol = 5) +
-#      geom_line(data = chng_data, mapping = aes(x = .data$time_value, y = .data$scaled_value), color = 'red')
-# g
 ```
 
 ## Trajectory plots
@@ -65,27 +54,4 @@ plot_state_forecasters_(flu_forecasts) %>% plotly::ggplotly()
 ```{r, fig.height = 10, fig.width = 15, echo=FALSE}
 # setup the plot and join corrections to the truth
 plot_nation_forecasters_(flu_forecasts) %>% plotly::ggplotly()
-```
-
-## TODO: Compare to hub
-
-```{r, fig.height = 50, fig.width = 15, dev="CairoSVG", echo=FALSE}
-# hub <- get_covidhub_predictions(
-#   c("COVIDhub-4_week_ensemble", "UMass-trends_ensemble"),
-#   forecast_dates = "2022-01-10", forecast_type = "point",
-#   ahead = 0:28, incidence_period = "day", signal = "confirmed_admissions_influenza_1d_7dav")
-# hub_and_ours <- bind_rows(
-#   hub,
-#   antelope %>% dplyr::filter(abs(quantile - .5) < 1e-3))
-# actuals <- covidcast::covidcast_signal("hhs", "confirmed_admissions_influenza_1d_7dav",
-#                                        start_day = "2021-12-01", geo_type = "state")
-# ggplot(hub_and_ours) +
-#   geom_line(aes(target_end_date, value, color = forecaster)) +
-#   geom_point(aes(target_end_date, value, color = forecaster), size=3) +
-#   geom_line(data = actuals, aes(time_value, value), color = "black") +
-#   geom_point(data = actuals, aes(time_value, value), color = "black", size=3) +
-#   scale_color_brewer(palette = "Set1") +
-#   facet_wrap(~geo_value, scales = "free_y", ncol=5) +
-#   theme_bw(base_size = 30) +
-#   theme(legend.position = "bottom")
 ```
