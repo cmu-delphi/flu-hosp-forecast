@@ -1,3 +1,6 @@
+# Copied on 2023-09-29 from:
+#   cmu-delphi/covid-hosp-forecast/production-scripts/utils.R
+
 # Returns the next instance of a given weekday. If that is today, return today.
 get_next_weekday <- function(date, wday) {
   return(as.Date(date) + (wday - lubridate::wday(date)) %% 7)

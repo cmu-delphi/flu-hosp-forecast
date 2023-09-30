@@ -8,14 +8,17 @@ library(evalcast)
 library(tibble)
 source(here::here("code", "R", "quantgen.R"))
 source(here::here("code", "R", "ensemble.R"))
+source(here::here("code", "R", "utils.R"))
 
-###############################################################################
-# SETUP                                                                       #
-###############################################################################
+
 geo_type <- "state"
 response_data_source <- "hhs"
 response_signal <- "confirmed_admissions_influenza_1d_prop_7dav"
-ahead <- 4 + 7 * (0:3)
+forecast_date <- as.Date(Sys.getenv("FORECAST_DATE", unset = Sys.Date()))
+# Next Friday (or forecast_date, if it's a Friday)
+next_forecast_target_date <- get_next_weekday(forecast_date, 6)
+forecast_target_dates <- next_forecast_target_date + c(0, 7, 14, 21)
+ahead <- as.integer(forecast_target_dates - forecast_date)
 ntrain_reference <- 21
 ntrain_nowindow <- 20L * 365L
 lags <- c(0, 7, 14)
@@ -28,18 +31,9 @@ states_dc_pr_vi <- c(
   "sc", "sd", "tn", "tx", "ut", "vt", "va", "wa", "wv", "wi",
   "wy", "pr", "vi"
 )
-forecast_date <- as.Date(Sys.getenv("FORECAST_DATE", unset = Sys.Date()))
 cache_dir <- Sys.getenv("FLU_CACHE", unset = "exploration")
 offline_signal_dir <- here::here(paste0("cache/", cache_dir, "/signals"))
 forecast_cache_dir <- here::here("cache", cache_dir, "tuesday-forecasts")
-
-if (strftime(forecast_date, "%w") != "2") {
-  warning(
-    "Forecaster being run on a day that is not a Tuesday. ",
-    "The forecaster assumes that it is being run on Tuesday ",
-    "in which aheads are predicted."
-  )
-}
 
 make_start_day_ar <- function(ahead, ntrain, lags) {
   # NOTE: Why eval?
@@ -113,6 +107,7 @@ ens1 <- make_ensemble_forecaster(
   offline_signal_dir = offline_signal_dir
 ) %>% make_caching_forecaster("ens1", forecast_cache_dir)
 
+browser()
 t0 <- Sys.time()
 preds_state <- get_predictions(ens1,
   cmu_forecaster_name,
