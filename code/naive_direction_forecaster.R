@@ -1,15 +1,14 @@
-library(dplyr)
-library(tibble)
-library(tidyr)
-library(rlang)
-library(readr)
 library(checkmate)
-
+library(dplyr)
 library(epidatr)
 library(epiprocess)
-devtools::load_all(here::here("code", "direction.forecaster"), export_all = FALSE)
+library(readr)
+library(rlang)
+library(tibble)
+library(tidyr)
 
 source(here::here("code", "R", "approx-cdf.R"))
+source(here::here("code", "R", "utils.R"))
 
 
 # The code below is from postprocess_forecasts.R
@@ -92,31 +91,7 @@ get_preds_full <- function(preds_state) {
   return(preds_full)
 }
 
-
-augmented_location_data <- fetch_updating_resource(
-  function() {
-    read_csv("https://raw.githubusercontent.com/cdcepi/Flusight-forecast-data/master/data-locations/locations.csv",
-      col_types = cols(
-        abbreviation = col_character(),
-        location = col_character(),
-        location_name = col_character(),
-        population = col_integer(),
-        count_rate1per100k = col_integer(),
-        count_rate2per100k = col_integer()
-      )
-    )
-  },
-  function(response) {
-    assert_tibble(response)
-  },
-  here::here("cache", "location_data")
-) %>%
-  mutate(
-    large_change_count_thresh = pmax(count_rate2per100k, 40L),
-    nonlarge_change_count_thresh = pmax(count_rate1per100k, 20L),
-    geo_type = dplyr::if_else(location == "US", "nation", "state"),
-    geo_value = dplyr::if_else(location == "US", "us", tolower(covidcast::fips_to_abbr(location)))
-  )
+augmented_location_data <- get_flusight_location_data()
 
 # These locations will not be evaluated, and I believe that they do not want
 # submissions for these locations. (And there may not be the threshold/any data

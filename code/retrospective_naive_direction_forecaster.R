@@ -24,6 +24,8 @@
 #
 library(checkmate)
 library(dplyr)
+library(epidatr)
+library(epiprocess)
 library(glue)
 library(magrittr)
 library(readr)
@@ -32,11 +34,8 @@ library(stringr)
 library(tibble)
 library(tidyr)
 
-library(epidatr)
-library(epiprocess)
-devtools::load_all(here::here("code", "direction.forecaster"), export_all = FALSE)
-
 source(here::here("code", "R", "approx-cdf.R"))
+source(here::here("code", "R", "utils.R"))
 
 
 # These are the dates for which we will produce retrospective forecasts.
@@ -58,31 +57,7 @@ nonevaluated_locations <- state_pop %>%
   filter(geo_value %in% nonevaluated_geo_values) %>%
   pull(state_code)
 
-augmented_location_data <- fetch_updating_resource(
-  function() {
-    read_csv(
-      glue::glue("https://raw.githubusercontent.com/cdcepi/Flusight-forecast-data/master/data-locations/locations.csv"),
-      col_types = cols(
-        abbreviation = col_character(),
-        location = col_character(),
-        location_name = col_character(),
-        population = col_integer(),
-        count_rate1per100k = col_integer(),
-        count_rate2per100k = col_integer()
-      )
-    )
-  },
-  function(response) {
-    assert_tibble(response)
-  },
-  here::here("cache", "location_data")
-) %>%
-  mutate(
-    large_change_count_thresh = pmax(count_rate2per100k, 40L),
-    nonlarge_change_count_thresh = pmax(count_rate1per100k, 20L),
-    geo_type = dplyr::if_else(location == "US", "nation", "state"),
-    geo_value = dplyr::if_else(location == "US", "us", tolower(covidcast::fips_to_abbr(location)))
-  )
+augmented_location_data <- get_flusight_location_data()
 
 get_preds_full2 <- function(preds_state, exclude_geos = nonevaluated_geo_values) {
   # Eliminate rounding issues
@@ -175,7 +150,7 @@ make_retrospective_forecast <- function(nominal_forecast_date) {
   assert_that(inherits(nominal_forecast_date, c("Date", "POSIXt")), msg = "blah")
 
   # We started forecasting on Tuesday at some point (late January 2023), so the
-  # actual_forecast_date had to be bumped up by one, but not in 2022. 
+  # actual_forecast_date had to be bumped up by one, but not in 2022.
   actual_forecast_date <- nominal_forecast_date
   # actual_forecast_date <- nominal_forecast_date + 1L
   forecaster_cached_output <- get_flu_predictions(nominal_forecast_date)
