@@ -355,60 +355,67 @@ match_scalar_fn_arg <- function(arg) {
   return(arg)
 }
 
-make_caching_forecaster <- function(forecaster, forecaster.name, cache.parent.dirpath, replace.results.with.trivial.for.mem = FALSE, disable.saving = list(FALSE, "TRUE.because.internal.saving", TRUE)) {
+make_caching_forecaster <- function(
+    forecaster,
+    forecaster.name,
+    cache.parent.dirpath,
+    replace.results.with.trivial.for.mem = FALSE,
+    disable.saving = list(FALSE, "TRUE.because.internal.saving", TRUE)) {
   assert_that(is_function(forecaster))
   assert_that(is_scalar_character(forecaster.name))
   assert_that(is_bool(replace.results.with.trivial.for.mem))
   assert_that(is_scalar_character(cache.parent.dirpath))
   disable.saving <- match_scalar_fn_arg(disable.saving)
   cache.parent.dirpath <- here::here(cache.parent.dirpath)
-  ##
-  (function(df_list, forecast_date, ...) {
-    if (!dir.exists(cache.parent.dirpath)) {
-      dir.create(cache.parent.dirpath)
-    }
-    cache.dirpath <- file.path(cache.parent.dirpath, forecaster.name)
-    cache.filepath <- file.path(cache.dirpath, paste0(forecast_date, ".RDS"))
-    trivial.results <- tibble(ahead = 1L, geo_value = "-1", quantile = 0.5, value = NA_real_)
-    if (file.exists(cache.filepath)) {
-      if (replace.results.with.trivial.for.mem) {
-        cat("Cache file exists, but skipping loading & returning trivial results\n")
-        return(trivial.results)
-      } else {
-        cat("Loading forecast from cache.\n")
-        return(readRDS(cache.filepath))
+
+  return(
+    (function(df_list, forecast_date, ...) {
+      if (!dir.exists(cache.parent.dirpath)) {
+        dir.create(cache.parent.dirpath)
       }
-    } else {
-      cat(sprintf(
-        "No cache file found; generating result and %s at %s.\n",
-        switch(disable.saving,
-          "FALSE" = "storing",
-          "TRUE.because.internal.saving" = "not storing at this level (saving is internal)",
-          "TRUE" = "NOT storing (saving disabled)"
-        ),
-        cache.filepath
-      ))
-      ## We save time and have the same effect by skipping generating the
-      ## forecast if disable.saving is TRUE (and there is no internal saving)
-      ## and we are replacing the results with the trivial results.
-      if (!(identical(disable.saving, TRUE) && replace.results.with.trivial.for.mem)) {
-        forecast <- forecaster(df_list, forecast_date, ...)
-      }
-      ## We save only in the disable.saving FALSE case; we don't save in either
-      ## the TRUE or "TRUE.because.internal.saving" cases.
-      if (identical(disable.saving, FALSE)) {
-        if (!dir.exists(cache.dirpath)) {
-          dir.create(cache.dirpath)
+      cache.dirpath <- file.path(cache.parent.dirpath, forecaster.name)
+      cache.filepath <- file.path(cache.dirpath, paste0(forecast_date, ".RDS"))
+      trivial.results <- tibble(ahead = 1L, geo_value = "-1", quantile = 0.5, value = NA_real_)
+      if (file.exists(cache.filepath)) {
+        if (replace.results.with.trivial.for.mem) {
+          cat("Cache file exists, but skipping loading & returning trivial results\n")
+          return(trivial.results)
+        } else {
+          cat("Loading forecast from cache.\n")
+          return(readRDS(cache.filepath))
         }
-        saveRDS(forecast, cache.filepath)
-      }
-      if (replace.results.with.trivial.for.mem) {
-        return(trivial.results)
       } else {
-        return(forecast)
+        cat(sprintf(
+          "No cache file found; generating result and %s at %s.\n",
+          switch(disable.saving,
+            "FALSE" = "storing",
+            "TRUE.because.internal.saving" = "not storing at this level (saving is internal)",
+            "TRUE" = "NOT storing (saving disabled)"
+          ),
+          cache.filepath
+        ))
+        ## We save time and have the same effect by skipping generating the
+        ## forecast if disable.saving is TRUE (and there is no internal saving)
+        ## and we are replacing the results with the trivial results.
+        if (!(identical(disable.saving, TRUE) && replace.results.with.trivial.for.mem)) {
+          forecast <- forecaster(df_list, forecast_date, ...)
+        }
+        ## We save only in the disable.saving FALSE case; we don't save in either
+        ## the TRUE or "TRUE.because.internal.saving" cases.
+        if (identical(disable.saving, FALSE)) {
+          if (!dir.exists(cache.dirpath)) {
+            dir.create(cache.dirpath)
+          }
+          saveRDS(forecast, cache.filepath)
+        }
+        if (replace.results.with.trivial.for.mem) {
+          return(trivial.results)
+        } else {
+          return(forecast)
+        }
       }
-    }
-  }) %>% `class<-`(c("caching_forecaster", "function"))
+    }) %>% `class<-`(c("caching_forecaster", "function"))
+  )
 }
 
 cached_forecast_is_available <- function(forecaster, forecast_date) {

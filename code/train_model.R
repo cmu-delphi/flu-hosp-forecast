@@ -107,7 +107,6 @@ ens1 <- make_ensemble_forecaster(
   offline_signal_dir = offline_signal_dir
 ) %>% make_caching_forecaster("ens1", forecast_cache_dir)
 
-browser()
 t0 <- Sys.time()
 preds_state <- get_predictions(ens1,
   cmu_forecaster_name,
