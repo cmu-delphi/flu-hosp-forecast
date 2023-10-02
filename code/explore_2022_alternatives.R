@@ -45,6 +45,7 @@ base_offline_signal_dir <- here::here(paste0("cache/", "exploration", "/signals"
 forecaster_offline_signal_dir <- file.path(base_offline_signal_dir, "for-tuesday-forecasters")
 evaluation_offline_signal_dir <- file.path(base_offline_signal_dir, "for-evaluation")
 forecast_cache_dir <- here::here("cache", "exploration", "tuesday-forecasts")
+epidatr::set_cache(here::here("cache", "epidatr"), confirm = FALSE)
 
 make_start_day_ar <- function(ahead, ntrain, lags) {
   offset <- eval(1 - max(ahead) - ntrain - max(lags))
@@ -294,15 +295,14 @@ exploration_preds_state_baseline <-
   )
 
 eval_state_snapshot <-
-  evalcast::download_signal(
+  epidatr::pub_covidcast(
     response_data_source,
     response_signal,
-    start_day = min(forecast_dates) + min(ahead),
-    end_day = max(forecast_dates) + max(ahead),
     geo_type = "state",
+    time_type = "day",
     geo_values = "*",
-    as_of = eval_date,
-    offline_signal_dir = evaluation_offline_signal_dir
+    time_value = epirange(min(forecast_dates) + min(ahead), max(forecast_dates) + max(ahead)),
+    as_of = eval_date
   )
 
 eval_state_actuals <- eval_state_snapshot %>%

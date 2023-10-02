@@ -38,6 +38,7 @@ source(here::here("code", "R", "approx-cdf.R"))
 source(here::here("code", "R", "utils.R"))
 
 
+epidatr::set_cache(here::here("cache", "epidatr"), confirm = FALSE)
 # These are the dates for which we will produce retrospective forecasts.
 retrospective_forecast_dates <- seq(as.Date("2022-10-17"), as.Date("2022-12-19"), by = "week")
 
@@ -193,19 +194,23 @@ make_retrospective_forecast <- function(nominal_forecast_date) {
   # do direction calculations; fetch that data now:
   short_snapshot <-
     bind_rows(
-      evalcast::download_signal(
-        "hhs", "confirmed_admissions_influenza_1d",
-        nominal_forecast_date - 20L, nominal_forecast_date,
-        "state", "*",
-        as_of = actual_forecast_date,
-        offline_signal_dir = here::here("cache", "short_signals_for_direction")
-      ) %>% as_tibble(),
-      evalcast::download_signal(
-        "hhs", "confirmed_admissions_influenza_1d",
-        nominal_forecast_date - 20L, nominal_forecast_date,
-        "nation", "*",
-        as_of = actual_forecast_date,
-        offline_signal_dir = here::here("cache", "short_signals_for_direction")
+      epidatr::pub_covidcast(
+        "hhs",
+        "confirmed_admissions_influenza_1d",
+        "state",
+        "day",
+        "*",
+        epirange(nominal_forecast_date - 20L, nominal_forecast_date),
+        as_of = actual_forecast_date
+      ),
+      epidatr::pub_covidcast(
+        "hhs",
+        "confirmed_admissions_influenza_1d",
+        "nation",
+        "day",
+        "*",
+        epirange(nominal_forecast_date - 20L, nominal_forecast_date),
+        as_of = actual_forecast_date
       ) %>% as_tibble()
     )
 

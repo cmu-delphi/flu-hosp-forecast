@@ -10,6 +10,8 @@ library(tidyr)
 source(here::here("code", "R", "approx-cdf.R"))
 source(here::here("code", "R", "utils.R"))
 
+epidatr::set_cache(here::here("cache", "epidatr"), confirm = FALSE)
+
 
 # The code below is from postprocess_forecasts.R
 INCIDENCE_RATE <- 100000
@@ -175,19 +177,23 @@ preds_full <- get_preds_full(preds_state_prop_7dav)
 # do direction calculations; fetch that data now:
 short_snapshot <-
   bind_rows(
-    evalcast::download_signal(
-      "hhs", "confirmed_admissions_influenza_1d",
-      nominal_forecast_date - 20L, nominal_forecast_date,
-      "state", "*",
-      as_of = forecast_as_of_date,
-      offline_signal_dir = here::here("cache", "short_signals_for_direction")
-    ) %>% as_tibble(),
-    evalcast::download_signal(
-      "hhs", "confirmed_admissions_influenza_1d",
-      nominal_forecast_date - 20L, nominal_forecast_date,
-      "nation", "*",
-      as_of = forecast_as_of_date,
-      offline_signal_dir = here::here("cache", "short_signals_for_direction")
+    epidatr::pub_covidcast(
+      "hhs",
+      "confirmed_admissions_influenza_1d",
+      "state",
+      "day",
+      "*",
+      epirange(nominal_forecast_date - 20L, nominal_forecast_date),
+      as_of = actual_forecast_date
+    ),
+    epidatr::pub_covidcast(
+      "hhs",
+      "confirmed_admissions_influenza_1d",
+      "nation",
+      "day",
+      "*",
+      epirange(nominal_forecast_date - 20L, nominal_forecast_date),
+      as_of = actual_forecast_date
     ) %>% as_tibble()
   )
 

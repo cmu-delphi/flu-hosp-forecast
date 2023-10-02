@@ -17,10 +17,10 @@ states_dc_pr_vi <- c(
   "sc", "sd", "tn", "tx", "ut", "vt", "va", "wa", "wv", "wi",
   "wy", "pr", "vi"
 )
+epidatr::set_cache(here::here("cache", "epidatr"), confirm = FALSE)
 
 
 # NOTE that these are different signals than those pulled by train_model.R!
-epidatr::set_cache(here::here("cache", "epidatr"))
 archive_hhs_confirmed_admissions_influenza_1d <- pub_covidcast(
   "hhs",
   "confirmed_admissions_influenza_1d",
