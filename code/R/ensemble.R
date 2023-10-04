@@ -6,7 +6,8 @@ make_ensemble_forecaster <- function(component_alternatives, offline_signal_dir)
     function(df_list, forecast_date) {
       component_predictions_cards <- component_alternatives %>%
         map_dfr(function(alternative) {
-          get_predictions(alternative$forecaster,
+          get_predictions(
+            alternative$forecaster,
             forecaster_name(alternative$forecaster),
             alternative$signals,
             forecast_date,
@@ -19,7 +20,16 @@ make_ensemble_forecaster <- function(component_alternatives, offline_signal_dir)
         ## standardize quantile levels between components (some issues with
         ## floating-point values being slightly different):
         mutate(quantile = round(quantile, 5L)) %>>%
-        group_by(data_source, signal, incidence_period, forecast_date, ahead, target_end_date, geo_value, forecaster) %>>%
+        group_by(
+          data_source,
+          signal,
+          incidence_period,
+          forecast_date,
+          ahead,
+          target_end_date,
+          geo_value,
+          forecaster
+        ) %>>%
         ## validate (via filters and errors) and fix up component forecasts
         ##
         ## TODO this probably belongs somewhere else
