@@ -73,7 +73,8 @@ production_forecaster_reference <- list(
     lambda = 0,
     nonneg = TRUE,
     sort = TRUE,
-    lp_solver = "gurobi"
+    lp_solver = "gurobi",
+    n_core = parallel::detectCores()
   ) %>%
     make_named_forecaster("reference"),
   signals = signals_ar
@@ -93,7 +94,8 @@ production_forecaster_nowindow_latencyfix <- list(
       lambda = 0,
       nonneg = TRUE,
       sort = TRUE,
-      lp_solver = "gurobi"
+      lp_solver = "gurobi",
+      n_core = parallel::detectCores()
     ) %>%
     make_named_forecaster("nowindow_latencyfix"),
   signals = signals_ar

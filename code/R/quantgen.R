@@ -190,6 +190,10 @@ quantgen_forecaster <- function(
   predict_names <- names(as.list(args(predict_fun)))
   train_params <- params[names(params) %in% train_names]
   predict_params <- params[names(params) %in% predict_names]
+  # This controls how many threads Gurobi uses. By default (0) Gurobi uses all
+  # virtual cores, but we want to limit this, so we can parallelize across
+  # aheads.
+  train_params$params$Threads <- (n_core > 1) * max(floor(n_core / length(ahead)), 1)
 
   # Form both, "latest" will be saved to disk
   newx_list <- make_newx(df_features)
@@ -209,8 +213,19 @@ quantgen_forecaster <- function(
 
   if (verbose) message(sprintf("Quantgen forecaster running with %d cores", n_core))
   # Loop over ahead values, fit model, make predictions
-  results_list <- parallel::mclapply(1:length(ahead), function(i) {
-    # for (i in 1:length(ahead)) {
+  if (n_core > 1) {
+    lapply_fun <- function(X, FUN) {
+      bettermc::mclapply(
+        X,
+        FUN,
+        mc.cores = min(n_core, length(ahead)),
+        mc.allow.recursive = FALSE
+      )
+    }
+  } else {
+    lapply_fun <- lapply
+  }
+  results_list <- lapply_fun(1:length(ahead), function(i) {
     print(paste(i, "out of", length(ahead), "aheads"))
     a <- ahead[i]
     if (verbose) cat(sprintf("%s%i", ifelse(i == 1, "\nahead = ", ", "), a))
@@ -274,8 +289,7 @@ quantgen_forecaster <- function(
         ahead = a
       )
     return(list(predict_df, predict_params))
-  }, mc.cores = n_core, mc.allow.recursive = FALSE)
-  # }
+  })
   if (verbose) cat("\n")
 
   result <- lapply(results_list, function(x) x[[1]])
