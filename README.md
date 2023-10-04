@@ -67,7 +67,7 @@ echo 'R_GUROBI_LIBRARY_PATH="${GUROBI_HOME}/linux64/lib/"' | sudo tee -a /etc/R/
 echo 'R_LD_LIBRARY_PATH="${R_LD_LIBRARY_PATH}:${R_GUROBI_LIBRARY_PATH}"' | sudo tee -a /etc/R/ldpaths
 
 # Install Gurobi R
-Rscript -e 'install.packages("/opt/gurobi952/linux64/R/gurobi_9.5-2_R_4.2.0.tar.gz", repos=NULL)'
+Rscript -e 'renv::install("/opt/gurobi952/linux64/R/gurobi_9.5-2_R_4.2.0.tar.gz")'
 # Test the installation
 Rscript -e 'library(gurobi)'
 ```
