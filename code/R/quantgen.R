@@ -121,6 +121,11 @@ quantgen_forecaster <- function(
     n_core = 1,
     debug = NULL,
     ...) {
+  # Check that Gurobi is installed
+  if (!"gurobi" %in% rownames(installed.packages())) {
+    stop("Gurobi is not installed. Please install Gurobi and try again.")
+  }
+
   if (n_core > 1) {
     n_core <- min(n_core, parallel::detectCores())
   } else {
