@@ -59,8 +59,6 @@ quantile_predictions <- get_quantile_predictions(
 ##### Filter geos.
 quantile_predictions %<>% filter(!geo_value %in% exclude_geos)
 
-quantile_predictions %>% glimpse()
-
 ##### Make direction forecasts.
 direction_predictions <- get_direction_predictions(
   forecast_due_date,

@@ -32,8 +32,6 @@ get_direction_predictions <- function(
     paste0(forecast_due_date, ".RDS")
   )
 
-  preds_full <- quantile_predictions
-
   # We need to combine the quantile forecasts with recent observations in order to
   # do direction calculations; fetch that data now:
   short_snapshot <- bind_rows(
@@ -86,24 +84,37 @@ get_direction_predictions <- function(
       10
   )
 
-  direction_predictions <- preds_full %>%
-    filter(!location %in% .env$nonevaluated_locations) %>%
-    filter(target == "2 wk ahead inc flu hosp") %>%
-    group_by(forecast_due_date, location) %>%
+  # TODO:
+  # - Augmented location data has an extra column "...5". The schema must've
+  # changed. Need to fix.
+  # - Understand the columns in the schema. They have different names. Do they
+  # mean different things?
+  # - reference_7d_counts is only meant for 2 weeks ahead. We need to generalize
+  # this to all horizons.
+
+  browser()
+  direction_predictions <- quantile_predictions %>%
+    group_by(
+      forecaster,
+      data_source,
+      signal,
+      geo_value,
+      incidence_period,
+      reference_date,
+      target,
+      horizon,
+      target_end_date,
+      location
+    ) %>%
     summarize(
-      forecast = list(approx_cdf_from_quantiles(value, quantile)),
+      forecast = list(approx_cdf_from_quantiles(value, output_type_id)),
       .groups = "keep"
     ) %>%
-    # left_join(reference_7d_counts, by="geo_value") %>%
-    # left_join(augmented_location_data, by="geo_value") %>%
-    left_join(augmented_location_data, by = "location") %>%
+    left_join(augmented_location_data %>% select(-geo_value), by = "location") %>%
     left_join(reference_7d_counts, by = "geo_value") %>%
-    summarize(
-      type = "category",
-      type_id = c("large_decrease", "decrease", "stable", "increase", "large_increase") %>%
-        {
-          factor(., levels = .)
-        },
+    reframe(
+      output_type = "pmf",
+      output_type_id = as.factor(c("large_decrease", "decrease", "stable", "increase", "large_increase")),
       value = {
         stopifnot(length(forecast) == 1L)
         p_large_dec <- p_le(forecast[[1L]], reference_7dcount - large_change_count_thresh)
@@ -118,18 +129,14 @@ get_direction_predictions <- function(
           p_large_inc
         )
         result
-      },
-      .groups = "keep"
+      }
     ) %>%
+    group_by(reference_date, location) %>%
     # mix with uniform
     mutate(
-      value =
-        (1 - uniform_forecaster_weight) * value +
-          uniform_forecaster_weight * 1 / n()
+      value = (1 - uniform_forecaster_weight) * value + uniform_forecaster_weight * 1 / n()
     ) %>%
-    ungroup() %>%
-    mutate(target = "2 wk flu hosp rate change") %>%
-    select(forecast_due_date, target, location, type, type_id, value)
+    ungroup()
 
   # Sanity check that the output probabilities sum to 1.
   stopifnot(

@@ -91,7 +91,7 @@ get_postprocessed_forecasts <- function(preds_state) {
       incidence_period = "day",
       # Everything below is required for submission.
       reference_date = forecast_date,
-      target = "wk ahead inc flu hosp",
+      target = "wk inc flu hosp",
       horizon = (target_end_date - forecast_date) / 7,
       target_end_date = target_end_date,
       location = state_code,
