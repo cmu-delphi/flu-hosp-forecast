@@ -1,0 +1,248 @@
+# Epipredict Dogfood Yum 2023-07-05
+
+We have match-up!
+
+Previously:
+- we were filtering the data before handing it to the forecasters manually
+- on the right boundary, this doubled the effect of ahead on `train_end_date`
+- on the left boundary, quantgen was using a training window, but epipredict was not; now we use n_training, and now we have sync
+
+Now, we have:
+- exact match-up in every state **AFTER** ensuring forecast values increase with quantile in the quantgen forecaster
+
+To see this, run the code below. The variable `combined_out` contains the forecasts from both forecasters, the quantgen forecaster is `value` and epipredict is `value2`.
+
+TODO: stress-test these findings, e.g.
+- try different lags, aheads, and n_training
+- try using an archive forecaster
+- try a dataset where the data is not contiguous
+- try a dataset where one geo has a different max time_value
+- try a dataset where one geo has NAs
+- try a dataset where one geo has a different min time_value
+
+```{r}
+library(epipredict)
+library(epidatr)
+library(tidyverse)
+library(magrittr)
+library(covidcast)
+source(here::here("code", "quantgen.R"))
+# Get data
+data <- covidcast(
+    "hhs",
+    "confirmed_admissions_influenza_1d_prop_7dav",
+    "state",
+    "day",
+    "*",
+    epirange(20221201, 20230329),
+) %>%
+    fetch() %>%
+    as.covidcast_signal(signal = "confirmed_admissions_influenza_1d_prop_7dav")
+data %>% summarize(max(time_value), min(time_value))
+data %>% tibble()
+# Ensure same max time_value in every geo
+data %>%
+    group_by(geo_value) %>%
+    summarize(max_time_value = max(time_value)) %>%
+    filter(max_time_value != max(data$time_value))
+# Ensure data contiguous in every geo
+time_values <- seq.Date(as.Date("2022-12-01"), as.Date("2023-03-29"), by = "day")
+data %>%
+    group_by(geo_value) %>%
+    summarize(contiguous = (setdiff(time_values, time_value) %>% length() == 0)) %>%
+    filter(!contiguous)
+# Ensure no NAs
+data %>% summarize(sum(is.na(value)))
+# Setup model args
+n <- 4 * 7
+lags <- c(0, 7, 14)
+ahead <- 4
+tau <- evalcast::covidhub_probs()
+forecast_date <- "2023-03-29"
+states_dc_pr_vi <- c(
+    "al", "ak", "az", "ar", "ca", "co", "ct", "dc", "de", "fl",
+    "ga", "hi", "id", "il", "in", "ia", "ks", "ky", "la", "me",
+    "md", "ma", "mi", "mn", "ms", "mo", "mt", "ne", "nv", "nh",
+    "nj", "nm", "ny", "nc", "nd", "oh", "ok", "or", "pa", "ri",
+    "sc", "sd", "tn", "tx", "ut", "vt", "va", "wa", "wv", "wi",
+    "wy", "pr", "vi"
+)
+signals_ar <- tibble::tibble(
+    data_source = "hhs",
+    signal = "confirmed_admissions_influenza_1d_prop_7dav",
+    start_day = 20200501,
+    end_day = 20230329,
+    geo_values = list(states_dc_pr_vi),
+    geo_type = "state"
+)
+a <- ahead
+dt <- lapply(list(lags), "-")
+dt[[1]] <- c(dt[[1]], ahead)
+df_list <- list(data)
+df_wide <- covidcast::aggregate_signals(df_list, dt = dt, format = "wide")
+train_end_date <- df_wide %>%
+    select(time_value, tidyselect::starts_with(sprintf("value+%i:", a))) %>%
+    tidyr::drop_na() %>%
+    summarize(max(time_value)) %>%
+    pull()
+# Calculate predictions
+out1 <- quantgen_forecaster(
+    list(data),
+    forecast_date,
+    signals_ar,
+    "day",
+    ahead,
+    "state",
+    n,
+    lags = lags,
+    tau = tau,
+    nonneg = TRUE
+)
+data2 <- data %>%
+    select(geo_value, time_value, value) %>%
+    as_epi_df()
+out2 <- arx_forecaster(
+    data2,
+    "value",
+    "value",
+    quantile_reg(),
+    args_list = arx_args_list(
+        lags = lags,
+        ahead = ahead,
+        levels = tau,
+        nonneg = TRUE,
+        n_training = n
+    )
+)
+# Compare predictions
+ca_out1 <- out1[[1]] %>%
+    tibble() %>%
+    mutate(quantile = round(quantile, 5))
+# Fix quantile ordering
+ca_out1 <- ca_out1 %>%
+    group_by(geo_value) %>%
+    mutate(value = sort(value)) %>%
+    ungroup()
+ca_out2 <- out2$predictions %>%
+    group_by(geo_value) %>%
+    reframe(quantile = tau, value2 = quantile(.data$.pred_distn, tau)[[1]]) %>%
+    mutate(quantile = round(quantile, 5))
+combined_out <- ca_out1 %>%
+    full_join(ca_out2, by = c("geo_value", "quantile"))
+combined_out <- combined_out %>% mutate(
+    abs_diff = abs(combined_out$value - combined_out$value2),
+    rel_diff = abs(combined_out$value - combined_out$value2) / pmax(combined_out$value, combined_out$value2)
+)
+all.equal(combined_out$value, combined_out$value2)
+```
+
+
+# Epiprepdict Dogfood Yum 2023-04-26
+
+We have identified two key data transformation steps that can serve as comparison checkpoints between
+the production flu forecaster, i.e. `flu-hosp-forecast/code/quantgen.R`, and the epipredict AR forecaster,
+i.e. `epipredict::arx_forecaster`:
+
+1. lags and aheads calculation
+2. training window filtering
+
+In the production flu forecaster, we have
+
+1. `covidcast::aggregate_signals` takes covidcast signal data and creates a "wide df" with key columns
+   (geo_value, time_value) and value columns corresponding to each predictor's value combined with lags
+   and aheads
+    - e.g. a df with columns `geo_value` `time_value` `value+0:hhs_confirmed_admissions_covid_1d`
+      `value-4:hhs_confirmed_admissions_covid_1d` `value+4:hhs_confirmed_admissions_covid_1d`
+2. a filtering step that selects `n` most recent data points using
+    - right bound: `max(time_value) - ahead`, where `max(time_value)` is taken across all geos
+    - left bound: `max(time_value) - ahead - n + 1`, where `max(time_value)` is taken across all geos
+
+The equivalent procedures in `epipredict::arx_forecaster` are
+
+1. `step_epi_lag` and `step_epi_ahead`
+    - the computation is done slightly differently, but after dropping NAs, the dataframes are the same
+      in a few tested cases
+2. `step_training_window` (though it's not built into arx_forecaster)
+    - there appears to be a bug in `step_training_window`, where it doesn't group by geo when doing filtering
+
+Results:
+
+1. after omitting NAs, the outcomes of step (1) appear to be identical
+2. after bugfixing `step_training_window`, we can do the next comparison step
+
+```{r}
+library(epipredict)
+library(epidatr)
+library(tidyverse)
+library(magrittr)
+library(covidcast)
+library(recipes)
+# Data setup
+orig <- covidcast_signal(
+    "hhs",
+    "confirmed_admissions_covid_1d",
+    geo_type = "state",
+    geo_values = c("az", "al"),
+    time_type = "day"
+)
+orig <- orig %>% tibble()
+orig
+small <- orig %>%
+    filter(
+        geo_value == "al" & (
+            between(time_value, as.Date("2023-02-01"), as.Date("2023-02-07")) | between(time_value, as.Date("2023-02-14"), as.Date("2023-02-28"))
+        ) |
+            geo_value == "az" & between(time_value, as.Date("2023-02-01"), as.Date("2023-02-28"))
+    )
+small
+small2 <- small %>%
+    as_epi_df() %>%
+    select(geo_value, time_value, value)
+small2
+# Gaps filled, but values before min(time_value) and after max(time_value) are not added
+df_wide <- covidcast::aggregate_signals(list(small), list(c(0, -4, 4)), format = "wide") %>%
+    as_tibble() %>%
+    print(n = 20)
+# Gaps filled and values before min(time_value) and after max(time_value) are added, however some between values not added
+r <- epi_recipe(small2) %>%
+    step_epi_lag(value, lag = c(0, 4)) %>%
+    step_epi_ahead(value, ahead = 4)
+df_wide2 <- r %>%
+    prep(small2) %>%
+    bake(new_data = NULL) %>%
+    print(n = 20)
+# The same test as above, but with both methods dropping NAs (which presumably the fitters will do themselves)
+df_wide <- covidcast::aggregate_signals(list(small), list(c(0, -4, 4)), format = "wide") %>%
+    as_tibble() %>%
+    drop_na() %>%
+    print(n = 20)
+r <- epi_recipe(small2) %>%
+    step_epi_lag(value, lag = c(0, 4)) %>%
+    step_epi_ahead(value, ahead = 4) %>%
+    step_naomit(all_predictors(), skip = FALSE) %>%
+    step_naomit(all_outcomes(), skip = FALSE) %>%
+    step_training_window(n_recent = 3)
+df_wide2 <- r %>%
+    prep(small2) %>%
+    bake(new_data = NULL) %>%
+    print(n = 27)
+tib <- tibble::tibble(
+    x = 1:10,
+    y = 1:10,
+    time_value = rep(seq(as.Date("2020-01-01"),
+        by = 1,
+        length.out = 5
+    ), times = 2),
+    geo_value = rep(c("ca", "hi"), each = 5)
+) %>%
+    as_epi_df()
+epi_recipe(tib) %>%
+    step_training_window(n_recent = 3) %>%
+    recipes::prep(tib) %>%
+    recipes::bake(new_data = NULL)
+epi_recipe(tib) %>%
+    step_naomit(skip = FALSE) %>%
+    step_training_window(n_recent = 3) %>%
+    recipes::prep(tib) %>%
+    recipes::bake(new_data = NULL)
+```
