@@ -1,26 +1,29 @@
+#### Duplicates a lot of code from other files in this repo as this is meant to
+#### be a one-off analysis and it was easier. We may want to restructure things
+#### to de-duplicate at some point.
+
 library(dplyr)
 library(evalcast)
 library(pipeR)
 library(purrr)
 library(tibble)
-source(here::here("R", "quantgen.R'"))
+source(here::here("R", "quantgen.R"))
 source(here::here("R", "ensemble.R"))
 
-#### Duplicates a lot of code from other files in this repo as this is meant to
-#### be a one-off analysis and it was easier. We may want to restructure things
-#### to de-duplicate at some point.
+
+epidatr::set_cache(here::here("cache", "epidatr"), confirm = FALSE)
+base_offline_signal_dir <- here::here("cache", "evalcast")
+forecast_cache_dir <- here::here("cache", "forecasters")
+n_cores <- parallel::detectCores() - 1L
 
 forecast_dates <- seq(
   # a Tuesday at/after we've had issues for both signals for 57 days:
   as.Date("2022-02-01"),
-  # Sys.Date() - 2L,
-  # Sys.Date() - 1L,
-  # FIXME we normally don't use versions this recent as exploration forecast dates as they are still unstable and make the analysis not as reproducible (although this might allow them to be more similar to production forecasts if there are changes)
-  Sys.Date() - 0L,
-  # only once per week for now:
+  # after this date, chng is no longer available (before patch September 2023
+  # patch)
+  as.Date("2023-02-19"),
   by = "week"
-) %>%
-  tail(1L)
+)
 stopifnot(all(as.POSIXlt(forecast_dates)$wday == 2L)) # Tuesdays
 
 # most recent date with settled/finalized as_of data, as of sometime on
@@ -41,11 +44,6 @@ states_dc_pr_vi <- c(
   "sc", "sd", "tn", "tx", "ut", "vt", "va", "wa", "wv", "wi",
   "wy", "pr", "vi"
 )
-base_offline_signal_dir <- here::here(paste0("cache/", "exploration", "/signals"))
-forecaster_offline_signal_dir <- file.path(base_offline_signal_dir, "for-tuesday-forecasters")
-evaluation_offline_signal_dir <- file.path(base_offline_signal_dir, "for-evaluation")
-forecast_cache_dir <- here::here("cache", "exploration", "tuesday-forecasts")
-epidatr::set_cache(here::here("cache", "epidatr"), confirm = FALSE)
 
 make_start_day_ar <- function(ahead, ntrain, lags) {
   offset <- eval(1 - max(ahead) - ntrain - max(lags))
@@ -106,6 +104,7 @@ production_forecaster_reference <-
     lambda = 0,
     nonneg = TRUE,
     sort = TRUE,
+    n_cores = n_cores,
     lp_solver = "gurobi" # Docker doesn't support Gurobi
   )
 production_forecaster_latencyfix <-
@@ -122,6 +121,7 @@ production_forecaster_latencyfix <-
     lambda = 0,
     nonneg = TRUE,
     sort = TRUE,
+    n_cores = n_cores,
     lp_solver = "gurobi" # Docker doesn't support Gurobi
   )
 
@@ -138,6 +138,7 @@ production_forecaster_nowindow <-
     lambda = 0,
     nonneg = TRUE,
     sort = TRUE,
+    n_cores = n_cores,
     lp_solver = "gurobi" # Docker doesn't support Gurobi
   )
 
@@ -155,6 +156,7 @@ production_forecaster_nowindow_latencyfix <-
     lambda = 0,
     nonneg = TRUE,
     sort = TRUE,
+    n_cores = n_cores,
     lp_solver = "gurobi" # Docker doesn't support Gurobi
   )
 
@@ -171,6 +173,7 @@ production_forecaster_nochng <-
     lambda = 0,
     nonneg = TRUE,
     sort = TRUE,
+    n_cores = n_cores,
     lp_solver = "gurobi" # Docker doesn't support Gurobi
   )
 
@@ -188,17 +191,40 @@ production_forecaster_nowindow_latencyfix_nochng <-
     lambda = 0,
     nonneg = TRUE,
     sort = TRUE,
+    n_cores = n_cores,
     lp_solver = "gurobi" # Docker doesn't support Gurobi
   )
 
 production_forecaster_alternatives <- list(
   # pair forecaster functions with corresponding signal specs:
-  production_forecaster_reference = list(forecaster = production_forecaster_reference, signals = signals_ar_reference),
-  # production_forecaster_latencyfix = list(forecaster=production_forecaster_latencyfix, signals=signals_ar_reference),
-  # production_forecaster_nowindow = list(forecaster=production_forecaster_nowindow, signals=signals_ar_reference),
-  production_forecaster_nowindow_latencyfix = list(forecaster = production_forecaster_nowindow_latencyfix, signals = signals_ar_reference) # ,
-  # production_forecaster_nochng = list(forecaster=production_forecaster_nochng, signals=signals_ar_nochng),
-  # production_forecaster_nowindow_latencyfix_nochng = list(forecaster=production_forecaster_nowindow_latencyfix_nochng, signals=signals_ar_nochng)
+  production_forecaster_reference = list(
+    forecaster = production_forecaster_reference,
+    signals = signals_ar_reference
+  ),
+  production_forecaster_latencyfix = list(
+    forecaster = production_forecaster_latencyfix,
+    signals = signals_ar_reference
+  ),
+  production_forecaster_nowindow_latencyfix = list(
+    forecaster = production_forecaster_nowindow_latencyfix,
+    signals = signals_ar_reference
+  ),
+  production_forecaster_nowindow = list(
+    forecaster = production_forecaster_nowindow,
+    signals = signals_ar_reference
+  ),
+  production_forecaster_nowindow_latencyfix = list(
+    forecaster = production_forecaster_nowindow_latencyfix,
+    signals = signals_ar_reference
+  ),
+  production_forecaster_nochng = list(
+    forecaster = production_forecaster_nochng,
+    signals = signals_ar_nochng
+  ),
+  production_forecaster_nowindow_latencyfix_nochng = list(
+    forecaster = production_forecaster_nowindow_latencyfix_nochng,
+    signals = signals_ar_nochng
+  )
 ) %>%
   # add caching:
   map2(names(.), function(alternative, name) {
@@ -214,7 +240,7 @@ production_forecaster_alternatives <- list(
       list(
         ens1 = list(
           forecaster = make_ensemble_forecaster(list(.$production_forecaster_reference, .$production_forecaster_nowindow_latencyfix),
-            offline_signal_dir = forecaster_offline_signal_dir
+            offline_signal_dir = base_offline_signal_dir
           ),
           signals = signals_ar_reference # dummy to satisfy framework
         )
@@ -230,19 +256,6 @@ production_forecaster_alternatives <- list(
     )
   }
 
-# bettermc::mclapply inside `get_predictions` can make it harder to debug, even
-# when using only one core; just use a workaround disable it for now.
-#
-# (With recent evalcast updates, there should be better ways to do this.)
-invisible(bettermc::mclapply) # make sure bettermc is loaded (but not necessarily attached)
-if (!exists("bmc_mclapply_backup")) {
-  bmc_mclapply_backup <- bettermc::mclapply
-  bmc_mclapply_replacement <- rlang::new_function(
-    rlang::fn_fmls(bettermc::mclapply),
-    quote(lapply(X, FUN, ...))
-  )
-  assignInNamespace(ns = "bettermc", "mclapply", bmc_mclapply_replacement)
-}
 
 exploration_preds_state_by_forecaster_quantgen <-
   production_forecaster_alternatives %>%
@@ -254,7 +267,7 @@ exploration_preds_state_by_forecaster_quantgen <-
       forecast_dates,
       incidence_period = "day",
       forecaster_args = list(),
-      offline_signal_dir = forecaster_offline_signal_dir
+      offline_signal_dir = base_offline_signal_dir
     )
   })
 
@@ -291,7 +304,7 @@ exploration_preds_state_baseline <-
       incidence_period = "day",
       ahead = ahead
     ),
-    offline_signal_dir = forecaster_offline_signal_dir
+    offline_signal_dir = base_offline_signal_dir
   )
 
 eval_state_snapshot <-
