@@ -10,3 +10,8 @@ code/.venv
 code/.env
 *.html
 .vscode
+venv
+env
+.venv
+.env
+renv
