@@ -1,7 +1,6 @@
 #### BEGIN copied/adapted content from cmu-delphi/hospitalization-forecaster
 #### production-scripts/plotting.R as of 2022-10-17
 
-epidatr::set_cache(here::here("cache", "epidatr"))
 
 get_quantiles_df <- function(predictions_cards, intervals = c(.5, .9), ...) {
   predictions_cards <- predictions_cards %>%
@@ -89,7 +88,7 @@ plot_points <- function(g, points_df) {
   return(g)
 }
 
-plot_state_forecasters <- function(predictions_cards, exclude_geos = c(), start_day = NULL, ncol = 5, offline_signal_dir = NULL) {
+plot_state_forecasters <- function(predictions_cards, exclude_geos = c(), start_day = NULL, ncol = 5) {
   if (nrow(predictions_cards) == 0) {
     return(NULL)
   }
@@ -103,9 +102,11 @@ plot_state_forecasters <- function(predictions_cards, exclude_geos = c(), start_
     epirange(start_day, 20300101)
   ) %>%
     filter(!geo_value %in% exclude_geos) %>%
-    mutate(value = 7L * .data$value) %>%
+    mutate(
+      value = 7L * .data$value,
+      data_source = "hhs"
+    ) %>%
     rename(target_end_date = time_value)
-  td1$data_source <- "hhs"
   td2 <- epidatr::pub_covidcast(
     "chng",
     "smoothed_adj_outpatient_flu",
@@ -115,8 +116,10 @@ plot_state_forecasters <- function(predictions_cards, exclude_geos = c(), start_
     epirange(start_day, 20300101)
   ) %>%
     filter(!geo_value %in% exclude_geos) %>%
-    rename(target_end_date = time_value)
-  td2$data_source <- "chng"
+    rename(target_end_date = time_value) %>%
+    mutate(
+      data_source = "chng"
+    )
   td1.max <- td1 %>%
     group_by(geo_value) %>%
     summarize(max_value = max(value))
@@ -151,16 +154,46 @@ plot_state_forecasters <- function(predictions_cards, exclude_geos = c(), start_
   return(g)
 }
 
-plot_nation_forecasters <- function(predictions_cards, exclude_geos = c(), start_day = NULL, ncol = 5, offline_signal_dir = NULL) {
+plot_nation_forecasters <- function(predictions_cards, exclude_geos = c(), start_day = NULL, ncol = 5) {
   if (nrow(predictions_cards) == 0) {
     return(NULL)
   }
 
-  td1 <- get_truth_data(exclude_geos = exclude_geos, data_source = "hhs", signal = "confirmed_admissions_influenza_1d_7dav", start_day = start_day, geo_type = "nation", offline_signal_dir = offline_signal_dir) %>%
-    mutate(value = 7L * .data$value)
-  td1$data_source <- "hhs"
-  td2 <- get_truth_data(exclude_geos = exclude_geos, data_source = "chng", signal = "smoothed_adj_outpatient_flu", start_day = start_day, geo_type = "nation", offline_signal_dir = offline_signal_dir)
-  td2$data_source <- "chng"
+  td1 <- epidatr::pub_covidcast(
+    "hhs",
+    "confirmed_admissions_influenza_1d_7dav",
+    "state",
+    "day",
+    "*",
+    epirange(start_day, 20300101)
+  ) %>%
+    filter(!geo_value %in% exclude_geos) %>%
+    mutate(
+      value = 7L * .data$value,
+      data_source = "hhs"
+    ) %>%
+    rename(target_end_date = time_value) %>%
+    group_by(
+      target_end_date
+    ) %>%
+    summarize(value = sum(value))
+  td2 <- epidatr::pub_covidcast(
+    "chng",
+    "smoothed_adj_outpatient_flu",
+    "state",
+    "day",
+    "*",
+    epirange(start_day, 20300101)
+  ) %>%
+    filter(!geo_value %in% exclude_geos) %>%
+    rename(target_end_date = time_value) %>%
+    mutate(
+      data_source = "chng"
+    ) %>%
+    group_by(
+      target_end_date
+    ) %>%
+    summarize(value = sum(value))
   td1.max <- td1 %>%
     summarize(max_value = max(value)) %>%
     pull(max_value)

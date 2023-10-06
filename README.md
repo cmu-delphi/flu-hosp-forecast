@@ -9,18 +9,22 @@ The definition for the main current forecaster is in `train_model.R`.
 You can use the CLI utility in the `code/` directory.
 
 ```sh
-# Run the forecasts and make an evaluation notebook (using exploration cache)
-python forecaster.py forecast postprocess notebook
+# Run the forecasts and make an evaluation notebook
+python forecaster.py forecast
 
-# Run the forecasts on a given date (make sure it's a Tuesday)
-FORECAST_DATE="2023-02-28" python forecaster.py forecast postprocess notebook
+# Run the forecasts on a given date
+FORECAST_DUE_DATE="2023-02-28" python forecaster.py forecast
 
-# Use the production cache
-FLU_CACHE="production" python forecaster.py forecast postprocess notebook
-
-# See the CLI help message
+# See more CLI commands
 python forecaster.py --help
 ```
+
+## Directory Layout
+
+-   `run.R` - the main R script for the forecaster
+-   `Makefile` - a Makefile for installing dependencies
+-   `R/` - importable R functions for the forecaster
+-   `scripts/` - other pipeline scripts
 
 ## Installation
 
@@ -34,7 +38,6 @@ After cloning this repo and `cd`ing into it, run the following commands:
 echo "GITHUB_PAT=<your token>" | tee -a ~/.zprofile
 
 # Setup Python3
-cd code
 make install-system-deps
 make install-py-deps
 

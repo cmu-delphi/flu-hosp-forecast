@@ -1,13 +1,8 @@
 .RData
 .Rhistory
-code/data-forecasts/**
 *.log
 .python-version
 __pycache__
-/cache
-code/venv
-code/.venv
-code/.env
 *.html
 .vscode
 venv
@@ -15,3 +10,5 @@ env
 .venv
 .env
 renv
+cache
+data-forecasts/**

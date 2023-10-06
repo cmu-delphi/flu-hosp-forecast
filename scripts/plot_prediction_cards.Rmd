@@ -3,6 +3,9 @@ title: "Flu Forecasts"
 author: "Team Flu"
 date: "`r format(Sys.time(), '%B %d, %Y')`"
 output: html_document
+params:
+  exclude_geos: !r character(0L)
+  predictions_file:
 ---
 
 ```{r setup, include=FALSE, echo=FALSE}
@@ -16,28 +19,9 @@ library(readr)
 library(tidyverse)
 library(zookeeper)
 
-#### BEGIN copied/adapted from cmu-delphi/hospitalization-forecaster
-source("plotting.R")
+source(here::here("R", "plotting.R"))
 
-exclude_geos <- character(0L)
-cache_dir <- Sys.getenv("FLU_CACHE", "exploration")
-offline_signal_dir <- here::here(paste0("cache/", cache_dir, "/signals"))
-forecast_date <- as.Date(Sys.getenv("FORECAST_DATE", unset = lubridate::today())) - 1
-
-plot_state_forecasters_ <- function(df) {
-  plot_state_forecasters(df %>% filter(geo_value != "us"), exclude_geos = exclude_geos, start_day = "2022-01-01", ncol = 2, offline_signal_dir = offline_signal_dir) %>%
-    suppressMessages() %>%
-    suppressWarnings()
-}
-
-plot_nation_forecasters_ <- function(df) {
-  plot_nation_forecasters(df %>% filter(geo_value == "us"), exclude_geos = exclude_geos, start_day = "2022-01-01", offline_signal_dir = offline_signal_dir) %>%
-    suppressMessages() %>%
-    suppressWarnings()
-}
-#### END copied/adapted from cmu-delphi/hospitalization-forecaster
-
-predictions_file <- here::here("code", "data-forecasts", "CMU-TimeSeries", sprintf("%s-CMU-TimeSeries-full-cols.csv", forecast_date))
+epidatr::set_cache(here::here("cache", "epidatr"))
 flu_forecasts <- read_csv(predictions_file, show_col_types = FALSE)
 ```
 
@@ -48,10 +32,16 @@ flu_forecasts <- read_csv(predictions_file, show_col_types = FALSE)
 
 ```{r, fig.height = 80, fig.width = 15, echo=FALSE}
 # setup the plot and join corrections to the truth
-plot_state_forecasters_(flu_forecasts) %>% plotly::ggplotly()
+plot_state_forecasters(df %>% filter(geo_value != "us"), exclude_geos = exclude_geos, start_day = "2022-01-01", ncol = 2) %>%
+  suppressMessages() %>%
+  suppressWarnings() %>%
+  plotly::ggplotly()
 ```
 
 ```{r, fig.height = 10, fig.width = 15, echo=FALSE}
 # setup the plot and join corrections to the truth
-plot_nation_forecasters_(flu_forecasts) %>% plotly::ggplotly()
+plot_nation_forecasters(df %>% filter(geo_value == "us"), exclude_geos = exclude_geos, start_day = "2022-01-01") %>%
+  suppressMessages() %>%
+  suppressWarnings() %>%
+  plotly::ggplotly()
 ```

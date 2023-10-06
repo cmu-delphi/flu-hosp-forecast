@@ -1,22 +1,17 @@
 """
 Forecaster Runner Utility
 
+This utility mostly handles the process of copying the submission files,
+committing to the repo, and posting to Slack. It can also generate the
+forecasts.
+
 See python forecaster.py --help for usage.
-
-This runner acts as a friendly interface to a set of R forecasting scripts:
-
-  train_model.R
-  postprocess_forecasts.R
-  render_prediction_cards.R
-
-See their docstrings for info.
 """
 
 import os
 import re
 import shutil
 import subprocess
-from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -51,45 +46,43 @@ def get_previous_weekday(cur_date: datetime, weekday: int) -> datetime:
 
 
 DATE_FORMAT = "%Y-%m-%d"
-NEAREST_TUESDAY = get_previous_weekday(datetime.today(), 1)
-os.environ["FORECAST_DATE"] = os.environ.get("FORECAST_DATE", NEAREST_TUESDAY.strftime(DATE_FORMAT))
-NOMINAL_FORECAST_DATE = NEAREST_TUESDAY - timedelta(days=1)
-NOMINAL_FORECAST_DATE_STR = NOMINAL_FORECAST_DATE.strftime(DATE_FORMAT)
-TODAY = datetime.today()
-TODAY_STR = TODAY.strftime(DATE_FORMAT)
+# The generation date is usually today.
+FORECAST_GENERATION_DATE = datetime.today()
+# The due date is the date of the forecast, which should be a Wednesday. It is
+# also the effective as of date for requesting API data.
+FORECAST_DUE_DATE = get_previous_weekday(FORECAST_GENERATION_DATE, 2)
+# The reference date is the Saturday after the due date.
+REFERENCE_DATE = get_next_weekday(FORECAST_DUE_DATE, 5)
+
+FLU_SUBMISSION_DIR = (
+    Path(os.environ.get("FLU_SUBMISSIONS_PATH", ""))
+    / "data-forecasts"
+    / "CMU-TimeSeries"
+)
+FLU_DIRECTION_SUBMISSION_DIR = (
+    Path(os.environ.get("FLU_SUBMISSIONS_PATH", ""))
+    / "data-experimental"
+    / "CMU-TimeSeries"
+)
+FLU_PREDICTIONS_FILE = (
+    Path(os.getcwd())
+    / "data-forecasts"
+    / f"{REFERENCE_DATE:%Y-%m-%d}-CMU-TimeSeries.csv"
+)
+FLU_PREDICTIONS_NOTEBOOK = (
+    Path(os.getcwd()) / f"{REFERENCE_DATE:%Y-%m-%d}-flu-forecast.html"
+)
 
 
-@dataclass
-class ForecasterPaths:
-    FLU_SUBMISSION_DIR: Path
-    FLU_DIRECTION_SUBMISSION_DIR: Path
-    FLU_PREDICTIONS_FILE: Path
-    FLU_DIRECTION_PREDICTIONS_FILE: Path
-    FLU_PREDICTIONS_NOTEBOOK: Path
+@app.command("forecast")
+def make_forecasts():
+    """Make flu forecasts for the previous Monday (possibly today).
 
-
-def get_forecaster_paths():
-    """Get paths to the COVID and flu data and notebooks."""
-    return ForecasterPaths(
-        Path(os.environ.get("FLU_SUBMISSIONS_PATH", "")) / "data-forecasts" / "CMU-TimeSeries",
-        Path(os.environ.get("FLU_SUBMISSIONS_PATH", "")) / "data-experimental" / "CMU-TimeSeries",
-        Path(os.getcwd()) / "data-forecasts" / "CMU-TimeSeries" / f"{NOMINAL_FORECAST_DATE_STR}-CMU-TimeSeries.csv",
-        Path(os.getcwd())
-        / "data-forecasts"
-        / "direction-predictions"
-        / f"generated-{TODAY_STR}"
-        / f"{NOMINAL_FORECAST_DATE_STR}-CMU-TimeSeries.csv",
-        Path(os.getcwd()) / f"{NOMINAL_FORECAST_DATE_STR}-flu-forecast.html",
-    )
-
-
-FORECASTER_PATHS = get_forecaster_paths()
-
-
-@app.command("install")
-def install():
-    """Install the R dependencies for the COVID hospitalization forecaster."""
-    subprocess.run(["Rscript", "production-scripts/install.R"], check=True)
+    Output is placed in data-forecasts/CMU-TimSeries/.
+    """
+    # Set this to "production", to use the production cache
+    os.environ["FLU_CACHE"] = os.environ.get("FLU_CACHE", "exploration")
+    subprocess.run(["Rscript", "run.R"], check=True)
 
 
 def check_exists(path: Path):
@@ -106,29 +99,27 @@ def check_and_set_var(key: str, msg: str, force: bool = False):
 
 
 @app.command("set-vars")
-def setup_vars(force: bool = False):
+def set_vars(force: bool = False):
     """Set the environment variables for the forecaster utility."""
-    print("Checking and setting environment variables... (press Enter to skip any variable)")
+    print(
+        "Checking and setting environment variables... (press Enter to skip any variable)"
+    )
     check_and_set_var(
         "FLU_SUBMISSIONS_PATH",
         "Please enter the path to 'Flusight-forecast-data' (e.g. /Users/username/Documents/Flusight-forecast-data): ",
         force=force,
     )
-    check_and_set_var("SLACK_BOT_TOKEN", "Please enter your Slack bot token: ", force=force)
+    check_and_set_var(
+        "SLACK_BOT_TOKEN", "Please enter your Slack bot token: ", force=force
+    )
 
 
-def copy_to_repo(directions: bool = False):
+def copy_to_repo():
     """Copy predictions to the Flusight-forecast-data repo.
 
     The repo path is specified in the env var FLU_FORECASTER_PATH.
     """
-    if not directions:
-        shutil.copy(FORECASTER_PATHS.FLU_PREDICTIONS_FILE, FORECASTER_PATHS.FLU_SUBMISSION_DIR)
-    else:
-        shutil.copy(
-            FORECASTER_PATHS.FLU_DIRECTION_PREDICTIONS_FILE,
-            FORECASTER_PATHS.FLU_DIRECTION_SUBMISSION_DIR,
-        )
+    shutil.copy(FLU_PREDICTIONS_FILE, FLU_SUBMISSION_DIR)
 
 
 def get_latest_commit_date(repo: git.Repo) -> datetime:
@@ -154,26 +145,29 @@ def switch_to_branch(repo: git.Repo, branch_name: str):
     repo.head.reset(index=True, working_tree=True)
 
 
-def commit_to_repo(directions: bool = False):
+def commit_to_repo():
     """Commit to the Flusight-forecast-data repo.
 
     The repo path is specified in the env var FLU_FORECASTER_PATH.
+
+    Can't use git.index because we're using a sparse index. So we use the CLI
+    wrapper in git instead.
     """
     flu_submissions_repo = git.Repo(os.environ["FLU_SUBMISSIONS_PATH"])
     assert flu_submissions_repo.remote(name="origin").exists()
 
     latest_commit_date = get_latest_commit_date(flu_submissions_repo)
-    if latest_commit_date < NOMINAL_FORECAST_DATE:
-        if not directions:
-            # Can't use .index because we're using a sparse index. So we use the CLI wrapper .git instead.
-            flu_submissions_repo.git.add(str(FORECASTER_PATHS.FLU_SUBMISSION_DIR / f"{NOMINAL_FORECAST_DATE_STR}-CMU-TimeSeries.csv"))
-            flu_submissions_repo.git.commit("-m", f"[CMU-TimeSeries] Add {NOMINAL_FORECAST_DATE_STR} predictions")
-        else:
-        # Can't use .index because we're using a sparse index. So we use the CLI wrapper .git instead.
-            flu_submissions_repo.git.add(str(FORECASTER_PATHS.FLU_DIRECTION_SUBMISSION_DIR / f"{NOMINAL_FORECAST_DATE_STR}-CMU-TimeSeries.csv"))
-            flu_submissions_repo.git.commit("-m", f"[CMU-TimeSeries] Add {NOMINAL_FORECAST_DATE_STR} direction predictions")
+    if latest_commit_date < REFERENCE_DATE:
+        flu_submissions_repo.git.add(
+            str(FLU_SUBMISSION_DIR / f"{REFERENCE_DATE:%Y-%m-%d}-CMU-TimeSeries.csv")
+        )
+        flu_submissions_repo.git.commit(
+            "-m", f"[CMU-TimeSeries] Add {REFERENCE_DATE:%Y-%m-%d} predictions"
+        )
     else:
-        print(f"Latest commit is for {latest_commit_date.strftime(DATE_FORMAT)}; skipping commit.")
+        print(
+            f"Latest commit is for {latest_commit_date.strftime(DATE_FORMAT)}; not committing."
+        )
 
 
 def push_to_repo():
@@ -185,15 +179,16 @@ def push_to_repo():
     assert flu_submissions_repo.remote(name="origin").exists()
     branch_name = flu_submissions_repo.active_branch.name
 
-    flu_submissions_repo.remote(name="origin").push(f"refs/heads/{branch_name}:refs/heads/{branch_name}")
+    flu_submissions_repo.remote(name="origin").push(
+        f"refs/heads/{branch_name}:refs/heads/{branch_name}"
+    )
 
 
 @app.command("submit")
-def submit(directions: bool = False):
+def submit():
     """Submit forecasts to the Flusight-forecast-data repo.
 
     The repo path is specified in the env var FLU_FORECASTER_PATH.
-    Directions are submitted if the --directions flag is set.
     """
     flu_submissions_repo = git.Repo(os.environ["FLU_SUBMISSIONS_PATH"])
     assert flu_submissions_repo.remote(name="origin").exists()
@@ -201,21 +196,19 @@ def submit(directions: bool = False):
 
     flu_submissions_repo.remote(name="origin").pull()
 
-    if not directions:
-        make_new_branch(flu_submissions_repo, f"forecast-{NOMINAL_FORECAST_DATE_STR}")
-        switch_to_branch(flu_submissions_repo, f"forecast-{NOMINAL_FORECAST_DATE_STR}")
-    else:
-        make_new_branch(flu_submissions_repo, f"forecast-directions-{NOMINAL_FORECAST_DATE_STR}")
-        switch_to_branch(flu_submissions_repo, f"forecast-directions-{NOMINAL_FORECAST_DATE_STR}")
+    make_new_branch(flu_submissions_repo, f"forecast-{REFERENCE_DATE:%Y-%m-%d}")
+    switch_to_branch(flu_submissions_repo, f"forecast-{REFERENCE_DATE:%Y-%m-%d}")
 
-    copy_to_repo(directions=directions)
-    commit_to_repo(directions=directions)
+    copy_to_repo()
+    commit_to_repo()
     push_to_repo()
 
     switch_to_branch(flu_submissions_repo, "master")
 
 
-def upload_file_to_slack(client: WebClient, file_path: str, slack_file_name: str) -> str:
+def upload_file_to_slack(
+    client: WebClient, file_path: str, slack_file_name: str
+) -> str:
     result = client.files_upload(file=file_path, title=slack_file_name)
     if not result.get("ok"):
         raise SlackApiError("Couldn't upload file.", result)
@@ -244,64 +237,26 @@ def post_notebook_to_slack(test_mode: bool = False):
         raise ValueError("SLACK_BOT_TOKEN not found.")
 
     SLACK_CHANNEL = "C03SD5K905D" if test_mode else "C03A46R6LBW"
-    LOGAN_ID = "UFABH1A4V"
-    DMITRY_ID = "U018LKL6W91"
+    ROLE_TAG_STRING = "<!subteam^S05AN3WH91V|covid-forecast-submission>"
 
     notebook_link = upload_file_to_slack(
         client,
-        str(FORECASTER_PATHS.FLU_PREDICTIONS_NOTEBOOK),
-        FORECASTER_PATHS.FLU_PREDICTIONS_NOTEBOOK.name,
+        str(FLU_PREDICTIONS_NOTEBOOK),
+        FLU_PREDICTIONS_NOTEBOOK.name,
     )
     csv_link = upload_file_to_slack(
         client,
-        str(FORECASTER_PATHS.FLU_PREDICTIONS_FILE),
-        FORECASTER_PATHS.FLU_PREDICTIONS_FILE.name,
-    )
-    csv_link2 = upload_file_to_slack(
-        client,
-        str(FORECASTER_PATHS.FLU_DIRECTION_PREDICTIONS_FILE),
-        FORECASTER_PATHS.FLU_DIRECTION_PREDICTIONS_FILE.name,
+        str(FLU_PREDICTIONS_FILE),
+        FLU_PREDICTIONS_FILE.name,
     )
 
-    hyperlinks = get_hyperlink_text(notebook_link, "Notebook") + " " + get_hyperlink_text(csv_link, "CSV") + " " + get_hyperlink_text(csv_link2, "Direction CSV")
-    text = f"Flu: {hyperlinks} for {NOMINAL_FORECAST_DATE_STR} <@{DMITRY_ID}> <@{LOGAN_ID}>."
+    hyperlinks = " ".join(
+        get_hyperlink_text(notebook_link, "Notebook"),
+        get_hyperlink_text(csv_link, "CSV"),
+    )
+    text = f"Flu: {hyperlinks} for {FORECAST_DUE_DATE:%Y-%m-%d} {ROLE_TAG_STRING}"
 
     post_upload_message(client, text, channel=SLACK_CHANNEL)
-
-
-@app.command("forecast")
-def make_forecasts():
-    """Make flu forecasts for the previous Monday (possibly today).
-
-    Output is placed in data-forecasts/CMU-TimSeries/.
-    """
-    # Set this to "production", to use the production cache
-    os.environ["FLU_CACHE"] = os.environ.get("FLU_CACHE", "exploration")
-    subprocess.run(["Rscript", "train_model.R"], check=True)
-
-
-@app.command("forecast-direction")
-def make_forecast_directions():
-    """Make flu direction forecasts for the previous Monday (possibly today).
-
-    Output is placed in data-forecasts/generated-YYYY-MM-DD-as-of-YYYY-MM-DD/.
-    """
-    os.environ["FLU_CACHE"] = os.environ.get("FLU_CACHE", "exploration")
-    subprocess.run(["Rscript", "naive_direction_forecaster.R"], check=True)
-
-
-@app.command("postprocess")
-def postprocess_forecasts():
-    """Postprocess forecasts for our main model."""
-    os.environ["FLU_CACHE"] = os.environ.get("FLU_CACHE", "exploration")
-    subprocess.run(["Rscript", "postprocess_forecasts.R"], check=True)
-
-
-@app.command("notebook")
-def make_notebook():
-    """Make a markdown notebook for our main model."""
-    os.environ["FLU_CACHE"] = os.environ.get("FLU_CACHE", "exploration")
-    subprocess.run(["Rscript", "render_prediction_cards.R"], check=True)
 
 
 if __name__ == "__main__":

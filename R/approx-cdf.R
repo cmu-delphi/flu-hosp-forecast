@@ -1,9 +1,9 @@
+library("assertthat")
 library("dplyr")
-library("purrr")
 library("ggplot2")
 library("pipeR")
+library("purrr")
 library("rlang")
-library("assertthat")
 
 ## piecewise linear + jumps cadlag function starting with y=0 ending with any nonneg y, constant beyond edges
 approx_cdf <- function(xs, ys.before, ys.at) {

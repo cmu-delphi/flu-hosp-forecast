@@ -22,6 +22,7 @@
 # Some of its changes may be worth porting back to naive_direction_forecaster.R
 # at some point.
 #
+
 library(checkmate)
 library(dplyr)
 library(epidatr)
@@ -34,21 +35,15 @@ library(stringr)
 library(tibble)
 library(tidyr)
 
-source(here::here("code", "R", "approx-cdf.R"))
-source(here::here("code", "R", "utils.R"))
+source(here::here("R", "approx-cdf.R"))
+source(here::here("R", "utils.R"))
 
 
 epidatr::set_cache(here::here("cache", "epidatr"), confirm = FALSE)
 # These are the dates for which we will produce retrospective forecasts.
 retrospective_forecast_dates <- seq(as.Date("2022-10-17"), as.Date("2022-12-19"), by = "week")
-
-# get_preds_full was extracted from postprocess_forecasts.R and modified.
 incidence_rate <- 100000
-
-# Will need this to convert from state_code (01) to state_id (al)
-state_pop <- readr::read_csv(here::here("code", "state_pop.csv"), show_col_types = FALSE) %>%
-  rename(geo_value = state_id) %>%
-  select(-state_name)
+state_pop <- get_state_data()
 
 # These locations will not be evaluated, and I believe that they do not want
 # submissions for these locations. (And there may not be the threshold/any data
@@ -314,7 +309,6 @@ make_retrospective_forecast <- function(nominal_forecast_date) {
   )
 
   dir_path <- here::here(
-    "code",
     "data-forecasts",
     "direction-predictions",
     glue("generated-{Sys.Date()}-as-of-{actual_forecast_date}")
