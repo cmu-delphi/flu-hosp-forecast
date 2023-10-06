@@ -1,14 +1,16 @@
 # Delphi Flu Hospitalization Production Forecaster
 
-Submitted to the [Flusight repo](https://github.com/cmu-delphi/Flusight-forecast-data).
-
-The definition for the main current forecaster is in `train_model.R`.
+Submitted to the [2023-2024 FluSight repo](https://github.com/cdcepi/FluSight-forecast-hub).
 
 ## Usage
 
-You can use the CLI utility in the `code/` directory.
+After getting Python setup, you can use the CLI utility.
 
 ```sh
+# Setup, activate venv, and install dependencies
+make install-py-deps
+source venv/bin/activate
+
 # Run the forecasts and make an evaluation notebook
 python forecaster.py forecast
 
@@ -38,12 +40,10 @@ After cloning this repo and `cd`ing into it, run the following commands:
 echo "GITHUB_PAT=<your token>" | tee -a ~/.zprofile
 
 # Setup Python3
-make install-system-deps
 make install-py-deps
+source venv/bin/activate
 
-# Install the latest R if you don't have it
-# https://cloud.r-project.org/bin/linux/ubuntu/
-make install-r
+# Install the latest R if you don't have it: https://cloud.r-project.org/bin/linux/ubuntu/
 
 # Install R dependencies
 make install-r-deps
