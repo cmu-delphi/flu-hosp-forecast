@@ -5,6 +5,15 @@ This utility mostly handles the process of copying the submission files,
 committing to the repo, and posting to Slack. It can also generate the
 forecasts.
 
+The generation date is usually today. The due date is the date of the forecast,
+which should be a Wednesday (it is also the effective as of date for requesting
+API data). The reference date is the Saturday after the due date.
+
+We assume that the submission repo path is set in the environment variable
+FLU_SUBMISSIONS_PATH. The submission repo for the 2023-2024 season is at
+
+    https://github.com/cdcepi/FluSight-forecast-hub/
+
 See python forecaster.py --help for usage.
 """
 
@@ -21,7 +30,9 @@ from dotenv import load_dotenv, set_key
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
-app = typer.Typer(name="flu-hosp-forecaster", chain=True)
+app = typer.Typer(
+    name="flu-hosp-forecaster", chain=True, help="Forecaster Runner Utility"
+)
 load_dotenv()
 
 
@@ -33,7 +44,8 @@ def get_next_weekday(cur_date: datetime, weekday: int) -> datetime:
     weekday == cur_date.weekday()     => timedelta(0)
     weekday == cur_date.weekday() - 1 => timedelta(6)
     ...
-    weekday == cur_date.weekday() - 6 => timedelta(1)"""
+    weekday == cur_date.weekday() - 6 => timedelta(1)
+    """
     return cur_date + timedelta((weekday - cur_date.weekday()) % 7)
 
 
@@ -46,23 +58,11 @@ def get_previous_weekday(cur_date: datetime, weekday: int) -> datetime:
 
 
 DATE_FORMAT = "%Y-%m-%d"
-# The generation date is usually today.
 FORECAST_GENERATION_DATE = datetime.today()
-# The due date is the date of the forecast, which should be a Wednesday. It is
-# also the effective as of date for requesting API data.
 FORECAST_DUE_DATE = get_previous_weekday(FORECAST_GENERATION_DATE, 2)
-# The reference date is the Saturday after the due date.
 REFERENCE_DATE = get_next_weekday(FORECAST_DUE_DATE, 5)
-
 FLU_SUBMISSION_DIR = (
-    Path(os.environ.get("FLU_SUBMISSIONS_PATH", ""))
-    / "data-forecasts"
-    / "CMU-TimeSeries"
-)
-FLU_DIRECTION_SUBMISSION_DIR = (
-    Path(os.environ.get("FLU_SUBMISSIONS_PATH", ""))
-    / "data-experimental"
-    / "CMU-TimeSeries"
+    Path(os.environ.get("FLU_SUBMISSIONS_PATH", "")) / "model-output" / "CMU-TimeSeries"
 )
 FLU_PREDICTIONS_FILE = (
     Path(os.getcwd())
@@ -70,15 +70,17 @@ FLU_PREDICTIONS_FILE = (
     / f"{REFERENCE_DATE:%Y-%m-%d}-CMU-TimeSeries.csv"
 )
 FLU_PREDICTIONS_NOTEBOOK = (
-    Path(os.getcwd()) / f"{REFERENCE_DATE:%Y-%m-%d}-flu-forecast.html"
+    Path(os.getcwd())
+    / "data-forecasts"
+    / f"{REFERENCE_DATE:%Y-%m-%d}-flu-forecast.html"
 )
 
 
 @app.command("forecast")
 def make_forecasts():
-    """Make flu forecasts for the previous Monday (possibly today).
+    """Make flu forecasts for the most recent Wednesday.
 
-    Output is placed in data-forecasts/CMU-TimSeries/.
+    Writes to data-forecasts/CMU-TimeSeries/.
     """
     # Set this to "production", to use the production cache
     os.environ["FLU_CACHE"] = os.environ.get("FLU_CACHE", "exploration")
@@ -100,7 +102,7 @@ def check_and_set_var(key: str, msg: str, force: bool = False):
 
 @app.command("set-vars")
 def set_vars(force: bool = False):
-    """Set the environment variables for the forecaster utility."""
+    """Set environment variables for the utility."""
     print(
         "Checking and setting environment variables... (press Enter to skip any variable)"
     )
@@ -115,7 +117,7 @@ def set_vars(force: bool = False):
 
 
 def copy_to_repo():
-    """Copy predictions to the Flusight-forecast-data repo.
+    """Copy predictions to the submission repo.
 
     The repo path is specified in the env var FLU_FORECASTER_PATH.
     """
@@ -123,7 +125,12 @@ def copy_to_repo():
 
 
 def get_latest_commit_date(repo: git.Repo) -> datetime:
-    """Search for the last submission by the CMU-TimeSeries group and extract the date."""
+    """Search for the last submission by the CMU-TimeSeries group and extract the date.
+
+    Assumes the CMU-TimeSeries group uses the following commit message format:
+
+        [CMU-TimeSeries] Add YYYY-MM-DD predictions
+    """
     pattern = r"\[CMU-TimeSeries\] Add (\d+-\d+-\d+) predictions"
 
     for commit in repo.iter_commits():
@@ -146,7 +153,7 @@ def switch_to_branch(repo: git.Repo, branch_name: str):
 
 
 def commit_to_repo():
-    """Commit to the Flusight-forecast-data repo.
+    """Commit to submission repo.
 
     The repo path is specified in the env var FLU_FORECASTER_PATH.
 
@@ -171,7 +178,7 @@ def commit_to_repo():
 
 
 def push_to_repo():
-    """Push to the Flusight-forecast-data repo.
+    """Push to the submission remote.
 
     The repo path is specified in the env var FLU_FORECASTER_PATH.
     """
@@ -186,7 +193,7 @@ def push_to_repo():
 
 @app.command("submit")
 def submit():
-    """Submit forecasts to the Flusight-forecast-data repo.
+    """Copy, commit, and push to the submission repo.
 
     The repo path is specified in the env var FLU_FORECASTER_PATH.
     """
@@ -230,7 +237,7 @@ def get_hyperlink_text(file_link: str, hyperlink_title: str) -> str:
 
 @app.command("post-slack")
 def post_notebook_to_slack(test_mode: bool = False):
-    """Post the Flu notebook and prediction csv to Slack."""
+    """Post the notebook and prediction csv to Slack."""
     if token := os.environ.get("SLACK_BOT_TOKEN"):
         client = WebClient(token=token)
     else:
