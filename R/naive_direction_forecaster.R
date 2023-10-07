@@ -1,3 +1,31 @@
+# Naive direction forecaster.
+#
+# This forecaster is based on the assumption that the direction of the forecast
+# is the same as the direction of the recent trend. The directions are obtained
+# as follows:
+#
+#  - For each state, we compute the 7-day sum of the most recent 7 days of data
+#    available.
+#  - TODO: Currently, we compare the forecasts of the 7-day sum from Sun-Sat to
+#    the 7-day sum from the previous Sat-Fri, because of data latency. Either we
+#    will get data from HHS to fix this or we can write a function to impute the
+#    missing Saturday data.
+#  - For each geo and horizon, we calculate the probability that the forecast is
+#    in each of the following categories:
+#
+#    - large decrease: 2 * thresh below the reference 7-day sum
+#    - decrease: thresh below the reference 7-day sum
+#    - stable: not in any of the categories above or below
+#    - increase: thresh above the reference 7-day sum
+#    - large increase: 2 * thresh above the reference 7-day sum
+#
+#   where thresh is the increase count threshold for the given horizon and geo.
+#   These thresholds are defined in R/utils.R in get_flusight_location_data().
+#   Looking at the previous year's data for the same thresholds, we saw that the
+#   thresholds for count_rate1per100k and count_rate1per100k were related by a
+#   factor of 2, so we use the same factor of 2 here.
+#
+
 library(checkmate)
 library(dplyr)
 library(epidatr)
@@ -13,27 +41,13 @@ source(here::here("R", "utils.R"))
 get_direction_predictions <- function(
     forecast_due_date,
     reference_date,
-    horizons,
-    exclude_geos,
     quantile_predictions) {
-  # Load state population data
   augmented_location_data <- get_flusight_location_data()
   state_pop <- get_state_data()
 
-  forecast_target_dates <- reference_date + 7 * horizons
-  ahead <- as.integer(forecast_target_dates - forecast_due_date)
-
-  cache_dir <- Sys.getenv("FLU_CACHE", unset = "exploration")
-  forecaster_cached_output <- here::here(
-    "cache",
-    cache_dir,
-    "tuesday-forecasts",
-    "ens1",
-    paste0(forecast_due_date, ".RDS")
-  )
-
   # We need to combine the quantile forecasts with recent observations in order to
-  # do direction calculations; fetch that data now:
+  # do direction calculations.
+  # TODO: Using a workaround for https://github.com/cmu-delphi/epidatr/issues/194
   short_snapshot <- bind_rows(
     epidatr::pub_covidcast(
       "hhs",
@@ -42,7 +56,6 @@ get_direction_predictions <- function(
       "day",
       "*",
       epirange(forecast_due_date - 20L, forecast_due_date),
-      # TODO: Workaround for https://github.com/cmu-delphi/epidatr/issues/194
       as_of = strftime(forecast_due_date, "%Y-%m-%d")
     ),
     epidatr::pub_covidcast(
@@ -52,19 +65,14 @@ get_direction_predictions <- function(
       "day",
       "*",
       epirange(forecast_due_date - 20L, forecast_due_date),
-      # TODO: Workaround for https://github.com/cmu-delphi/epidatr/issues/194
       as_of = strftime(forecast_due_date, "%Y-%m-%d")
     ) %>% as_tibble()
   )
 
-  # Ideally, we want to compare forecast 7dsum for Saturday 2 weeks ahead to the
-  # 7dsum for the Saturday directly preceding the forecast date. However, we might
-  # have larger data latency and not have data for the preceding Saturday, in
-  # which case we back off to the most recent 7dsum we have available, and just
-  # accept the mismatch.
+  # By the cadence of HHS data, we expect to have data up to Friday 12 days back
+  # from the forecast due date. We get the latest 7 day sum of the data available.
   reference_7d_counts <- short_snapshot %>%
-    # reference by forecast Wednesday - 4L = Saturday, else whatever is soonest before then
-    filter(time_value <= forecast_due_date - 4L) %>%
+    filter(time_value <= forecast_due_date - 12L) %>%
     group_by(geo_value) %>%
     complete(time_value = full_seq(time_value, 1L)) %>%
     slice_max(time_value, n = 7L) %>%
@@ -74,7 +82,7 @@ get_direction_predictions <- function(
       .groups = "drop"
     )
 
-  # rule of three for probability of "novel behavior"; mixing weight for uniform
+  # Rule of three for probability of "novel behavior"; mixing weight for uniform
   uniform_forecaster_weight <- 3 / (
     # roughly, how many years of hhs influenza are available
     as.numeric(forecast_due_date - as.Date("2020-10-16")) / (365 + 1 / 4 - 1 / 100 + 1 / 400) *
@@ -84,15 +92,6 @@ get_direction_predictions <- function(
       10
   )
 
-  # TODO:
-  # - Augmented location data has an extra column "...5". The schema must've
-  # changed. Need to fix.
-  # - Understand the columns in the schema. They have different names. Do they
-  # mean different things?
-  # - reference_7d_counts is only meant for 2 weeks ahead. We need to generalize
-  # this to all horizons.
-
-  browser()
   direction_predictions <- quantile_predictions %>%
     group_by(
       forecaster,
@@ -107,20 +106,33 @@ get_direction_predictions <- function(
       location
     ) %>%
     summarize(
-      forecast = list(approx_cdf_from_quantiles(value, output_type_id)),
+      forecast_acdf = list(approx_cdf_from_quantiles(value, output_type_id)),
       .groups = "keep"
     ) %>%
     left_join(augmented_location_data %>% select(-geo_value), by = "location") %>%
     left_join(reference_7d_counts, by = "geo_value") %>%
     reframe(
       output_type = "pmf",
-      output_type_id = as.factor(c("large_decrease", "decrease", "stable", "increase", "large_increase")),
+      output_type_id = c("large_decrease", "decrease", "stable", "increase", "large_increase"),
       value = {
-        stopifnot(length(forecast) == 1L)
-        p_large_dec <- p_le(forecast[[1L]], reference_7dcount - large_change_count_thresh)
-        p_large_or_nonlarge_dec <- p_le(forecast[[1L]], reference_7dcount - nonlarge_change_count_thresh)
-        p_large_or_nonlarge_inc <- p_ge(forecast[[1L]], reference_7dcount + nonlarge_change_count_thresh)
-        p_large_inc <- p_ge(forecast[[1L]], reference_7dcount + large_change_count_thresh)
+        stopifnot(length(forecast_acdf) == 1L)
+        if (horizon == -1) {
+          thresh <- increase_count_1_thresh
+        } else if (horizon == 0) {
+          thresh <- increase_count_2_thresh
+        } else if (horizon == 1) {
+          thresh <- increase_count_3_thresh
+        } else if (horizon == 2) {
+          thresh <- increase_count_4_thresh
+        } else if (horizon == 3) {
+          thresh <- increase_count_5_thresh
+        } else {
+          stop("horizon must be in -1:3")
+        }
+        p_large_dec <- p_le(forecast_acdf[[1L]], reference_7dcount - 2 * thresh)
+        p_large_or_nonlarge_dec <- p_le(forecast_acdf[[1L]], reference_7dcount - thresh)
+        p_large_or_nonlarge_inc <- p_ge(forecast_acdf[[1L]], reference_7dcount + thresh)
+        p_large_inc <- p_ge(forecast_acdf[[1L]], reference_7dcount + 2 * thresh)
         result <- c(
           p_large_dec,
           p_large_or_nonlarge_dec - p_large_dec,
@@ -131,7 +143,7 @@ get_direction_predictions <- function(
         result
       }
     ) %>%
-    group_by(reference_date, location) %>%
+    group_by(reference_date, horizon, location) %>%
     # mix with uniform
     mutate(
       value = (1 - uniform_forecaster_weight) * value + uniform_forecaster_weight * 1 / n()
@@ -142,7 +154,7 @@ get_direction_predictions <- function(
   stopifnot(
     all(abs(1 -
       direction_predictions %>%
-      group_by(forecast_due_date, target, location) %>%
+      group_by(reference_date, horizon, location) %>%
       summarize(value = sum(value)) %>%
       pull(value)) < 1e-8)
   )

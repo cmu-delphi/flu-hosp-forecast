@@ -38,30 +38,6 @@ manage_forecast_cache <- function(
   return(TRUE)
 }
 
-#' Location and population data as specified in the 2023-2024 season repo.
-get_flusight_location_data <- function() {
-  read_csv(
-    "https://raw.githubusercontent.com/cmu-delphi/FluSight-forecast-hub/main/auxiliary-data/locations.csv",
-    col_types = cols(
-      abbreviation = col_character(),
-      location = col_character(),
-      location_name = col_character(),
-      population = col_integer(),
-      count_rate1 = col_integer(),
-      count_rate2 = col_integer()
-    )
-  ) %>%
-    mutate(
-      large_change_count_thresh = pmax(count_rate2, 40L),
-      nonlarge_change_count_thresh = pmax(count_rate1, 20L),
-      geo_type = dplyr::if_else(location == "US", "nation", "state"),
-      geo_value = dplyr::if_else(
-        location == "US",
-        "us", tolower(covidcast::fips_to_abbr(location))
-      )
-    )
-}
-
 #' get_postprocessed_forecasts
 #'
 #' We postprocess by:
@@ -109,10 +85,16 @@ get_postprocessed_forecasts <- function(preds_state) {
   # Aggregate to US-level forecasts
   preds_us_unsorted <- preds_state_processed %>%
     group_by(
+      forecaster,
+      data_source,
+      signal,
+      incidence_period,
       reference_date,
+      target,
+      horizon,
       target_end_date,
       output_type,
-      output_type_id,
+      output_type_id
     ) %>%
     summarize(
       location = "US",
@@ -144,8 +126,50 @@ get_postprocessed_forecasts <- function(preds_state) {
     filter(!(.data$geo_value %in% exclude_geos))
 }
 
+#' Location and population data as specified in the 2023-2024 season repo.
+get_flusight_location_data <- function() {
+  read_csv(
+    "https://raw.githubusercontent.com/cmu-delphi/FluSight-forecast-hub/main/auxiliary-data/locations.csv",
+    col_types = cols(
+      abbreviation = col_character(),
+      location = col_character(),
+      location_name = col_character(),
+      population = col_integer(),
+      count_rate1 = col_integer(),
+      count_rate2 = col_integer(),
+      count_rate2p5 = col_integer(),
+      count_rate3 = col_integer(),
+      count_rate4 = col_integer(),
+      count_rate5 = col_integer(),
+    ),
+    col_select = c(
+      abbreviation,
+      location,
+      location_name,
+      population,
+      count_rate1,
+      count_rate2,
+      count_rate2p5,
+      count_rate3,
+      count_rate4,
+      count_rate5,
+    )
+  ) %>%
+    mutate(
+      increase_count_1_thresh = pmax(count_rate1, 10),
+      increase_count_2_thresh = pmax(count_rate2, 10),
+      increase_count_2p5_thresh = pmax(count_rate2p5, 10),
+      increase_count_3_thresh = pmax(count_rate3, 10),
+      increase_count_4_thresh = pmax(count_rate4, 10),
+      increase_count_5_thresh = pmax(count_rate5, 10),
+      geo_type = dplyr::if_else(location == "US", "nation", "state"),
+      geo_value = dplyr::if_else(
+        location == "US",
+        "us", tolower(covidcast::fips_to_abbr(location))
+      )
+    )
+}
 
-#'
 #' Get state abbreviation to state code to state population map from
 #' delphi_utils.geo_mapper
 #'

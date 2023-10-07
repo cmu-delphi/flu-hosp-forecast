@@ -3,6 +3,16 @@
 # Will produce the quantile and direction forecasts for the current week (unless
 # parameters are set otherwise.)
 #
+# The forecast generation date is usually today. The due date is the date of the
+# forecast, which should be a Wednesday (it is also the effective as of date for
+# requesting API data). The reference date is the Saturday after the due date.
+# The horizons are the number of weeks ahead to forecast, relative to the
+# reference date.
+#
+# To exclude a state from the forecast, add its two-letter state code to the
+# exclude_geos vector below. "as", "gu", "mp", and "vi" are excluded by default
+# due to lack of data.
+#
 # Outputs:
 #
 #  - submission file:
@@ -22,29 +32,22 @@ source(here::here("R", "naive_direction_forecaster.R"))
 epidatr::set_cache(here::here("cache", "epidatr"), confirm = FALSE)
 
 ##### Set parameters.
-# Generation date should usually be today.
 forecast_generation_date <- as.Date(Sys.getenv(
   "FORECAST_GENERATION_DATE",
   unset = Sys.Date()
 ))
-# The due date is the date of the forecast, which should be a Wednesday. It is
-# also the effective as of date for requesting API data.
 forecast_due_date <- as.Date(Sys.getenv(
   "FORECAST_DUE_DATE",
   unset = get_previous_weekday(forecast_generation_date, 4)
 ))
-# The reference date is the Saturday after the due date.
 reference_date <- get_next_weekday(forecast_due_date, 0)
-# These are week difference targets from the reference date.
 horizons <- -1:3
-# The first four geos are excluded due to lack of data. If any others misbehave,
-# add them to the list.
 exclude_geos <- tolower(c(
   c("as", "gu", "mp", "vi"),
   c()
 ))
 
-output_dir <- fs::path("data-forecasts")
+output_dir <- here::here("data-forecasts")
 if (!dir.exists(output_dir)) {
   dir.create(output_dir, recursive = TRUE)
 }
@@ -56,19 +59,30 @@ quantile_predictions <- get_quantile_predictions(
   horizons
 )
 
-##### Filter geos.
-quantile_predictions %<>% filter(!geo_value %in% exclude_geos)
-
 ##### Make direction forecasts.
 direction_predictions <- get_direction_predictions(
   forecast_due_date,
   reference_date,
-  horizons,
-  exclude_geos,
   quantile_predictions
 )
 
 ##### Combine and write the submissions file.
+combined_predictions <- bind_rows(
+  quantile_predictions %>% mutate(output_type_id = as.character(output_type_id)),
+  direction_predictions
+)
+
+write_csv(
+  combined_predictions,
+  fs::path(
+    output_dir,
+    sprintf("%s-CMU-TimeSeries-unfiltered.csv", reference_date)
+  ),
+  # quote='all' makes sure the location column is quoted.
+  quote = "all"
+)
+
+##### Filter geos and columns.
 keeps <- c(
   "reference_date",
   "target",
@@ -79,19 +93,18 @@ keeps <- c(
   "output_type_id",
   "value"
 )
-combined_predictions <- bind_rows(
-  quantile_predictions,
-  direction_predictions
-) %>%
+filtered_combined_predictions <- combined_predictions %>%
+  filter(!geo_value %in% exclude_geos) %>%
   select(all_of(keeps))
 
 write_csv(
-  combined_predictions,
+  filtered_combined_predictions,
   fs::path(
     output_dir,
     sprintf("%s-CMU-TimeSeries.csv", reference_date)
   ),
-  # quote='all' is important to make sure the location column is quoted.
+  # TODO: Quote all except for value?
+  # quote='all' makes sure the location column is quoted.
   quote = "all"
 )
 
@@ -104,6 +117,9 @@ rmarkdown::render(
   ),
   params = list(
     exclude_geos = exclude_geos,
-    predictions_file = output_file,
+    predictions_file = fs::path(
+      output_dir,
+      sprintf("%s-CMU-TimeSeries-unfiltered.csv", reference_date)
+    )
   )
 )

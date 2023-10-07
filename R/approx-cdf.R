@@ -5,6 +5,7 @@ library("pipeR")
 library("purrr")
 library("rlang")
 
+
 ## piecewise linear + jumps cadlag function starting with y=0 ending with any nonneg y, constant beyond edges
 approx_cdf <- function(xs, ys.before, ys.at) {
   assert_that(is.numeric(xs))
@@ -144,11 +145,16 @@ approx_cdf_from_quantiles <- function(quantiles, probs) {
   assert_that(!is.unsorted(quantiles))
   assert_that(is_double(probs))
   assert_that(all(0 <= probs & probs <= 1))
-  ##
+
+  # NOTE: What's the purpose of this run-length encoding?
   rle.quantiles <- rle(quantiles)
+  # NOTE: cdf.xs appears to be identical to quantiles.
   cdf.xs <- rle.quantiles[["values"]]
+  # NOTE: cdf.ys.at.inds appears to be identical to seq_along(probs).
   cdf.ys.at.inds <- cumsum(rle.quantiles[["lengths"]])
   cdf.ys.before.inds <- cdf.ys.at.inds - rle.quantiles[["lengths"]] + 1L
+  # NOTE: The following two appear to be identical to c(0.0, probs, 1.0), but
+  # shifted by 1 index.
   cdf.ys.at <- `[<-`(probs[cdf.ys.at.inds], length(cdf.xs), 1)
   cdf.ys.before <- `[<-`(probs[cdf.ys.before.inds], 1L, 0)
   approx_cdf(cdf.xs, cdf.ys.before, cdf.ys.at)
