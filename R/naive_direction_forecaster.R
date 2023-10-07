@@ -66,7 +66,7 @@ get_direction_predictions <- function(
       "*",
       epirange(forecast_due_date - 20L, forecast_due_date),
       as_of = strftime(forecast_due_date, "%Y-%m-%d")
-    ) %>% as_tibble()
+    )
   )
 
   # By the cadence of HHS data, we expect to have data up to Friday 12 days back
