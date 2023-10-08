@@ -12,13 +12,13 @@ make install-py-deps
 source venv/bin/activate
 
 # Run the forecasts and make an evaluation notebook
-python forecaster.py forecast
+python run.py forecast
 
 # Run the forecasts on a given date
-FORECAST_DUE_DATE="2023-02-28" python forecaster.py forecast
+FORECAST_DUE_DATE="2023-02-28" python run.py forecast
 
 # See more CLI commands
-python forecaster.py --help
+python run.py --help
 ```
 
 ## Directory Layout
