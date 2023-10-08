@@ -4,10 +4,10 @@
 # parameters are set otherwise.)
 #
 # The forecast generation date is usually today. The due date is the date of the
-# forecast, which should be a Wednesday (it is also the effective as of date for
-# requesting API data). The reference date is the Saturday after the due date.
-# The horizons are the number of weeks ahead to forecast, relative to the
-# reference date.
+# forecast, which should be the most recent previous a Wednesday (it is also the
+# effective as of date for requesting API data). The reference date is the
+# Saturday after the due date. The horizons are the number of weeks ahead to
+# forecast, relative to the reference date.
 #
 # To exclude a state from the forecast, add its two-letter state code to the
 # exclude_geos vector below. "as", "gu", "mp", and "vi" are excluded by default
