@@ -1,13 +1,14 @@
 """
-Forecaster Runner Utility
+Forecaster runner utility.
 
 This utility mostly handles the process of copying the submission files,
 committing to the repo, and posting to Slack. It can also generate the
 forecasts.
 
 The generation date is usually today. The due date is the date of the forecast,
-which should be a Wednesday (it is also the effective as of date for requesting
-API data). The reference date is the Saturday after the due date.
+which should be the most recent previous Wednesday (it is also the effective as
+of date for requesting API data). The reference date is the Saturday after the
+due date.
 
 We assume that the submission repo path is set in the environment variable
 FLU_SUBMISSIONS_PATH. The submission repo for the 2023-2024 season is at
@@ -31,7 +32,7 @@ from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
 app = typer.Typer(
-    name="flu-hosp-forecaster", chain=True, help="Forecaster Runner Utility"
+    name="flu-hosp-forecaster", chain=True, help="Forecaster runner utility."
 )
 load_dotenv()
 
