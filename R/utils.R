@@ -49,7 +49,6 @@ manage_forecast_cache <- function(
 #'
 get_postprocessed_forecasts <- function(preds_state) {
   incidence_rate <- 100000
-
   state_pop <- get_state_data()
 
   # Transform to weekly incidence counts
@@ -59,12 +58,7 @@ get_postprocessed_forecasts <- function(preds_state) {
       by = "geo_value",
     ) %>%
     transmute(
-      # Extra metadata for our purposes.
-      forecaster = "flu-model",
-      data_source = "hhs",
-      signal = "confirmed_admissions_influenza_1d_7dav",
       geo_value = geo_value,
-      incidence_period = "day",
       # Everything below is required for submission.
       reference_date = forecast_date,
       target = "wk inc flu hosp",
@@ -72,8 +66,7 @@ get_postprocessed_forecasts <- function(preds_state) {
       target_end_date = target_end_date,
       location = state_code,
       output_type = "quantile",
-      # Address unlikely rounding issues in quantile values.
-      output_type_id = signif(quantile, 4),
+      output_type_id = quantile,
       value = value * pop / incidence_rate * 7,
     ) %>%
     {
@@ -85,10 +78,6 @@ get_postprocessed_forecasts <- function(preds_state) {
   # Aggregate to US-level forecasts
   preds_us_unsorted <- preds_state_processed %>%
     group_by(
-      forecaster,
-      data_source,
-      signal,
-      incidence_period,
       reference_date,
       target,
       horizon,
@@ -114,16 +103,18 @@ get_postprocessed_forecasts <- function(preds_state) {
   }
   preds_us <- bind_rows(preds_us_list) %>%
     mutate(
-      data_source = "hhs",
-      signal = "confirmed_admissions_influenza_1d_7dav",
-      forecaster = "flu-model",
-      incidence_period = "day",
       geo_value = "us",
     )
 
   preds_full <- bind_rows(preds_state_processed, preds_us) %>%
-    arrange(location) %>%
-    filter(!(.data$geo_value %in% exclude_geos))
+    mutate(
+      # Extra metadata for dev purposes.
+      data_source = "hhs",
+      signal = "confirmed_admissions_influenza_1d_7dav",
+      forecaster = "flu-model",
+      incidence_period = "day",
+    ) %>%
+    arrange(location, reference_date, target, horizon, output_type, output_type_id)
 }
 
 #' Location and population data as specified in the 2023-2024 season repo.
