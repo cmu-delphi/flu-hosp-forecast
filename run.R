@@ -47,6 +47,11 @@ exclude_geos <- tolower(c(
   c()
 ))
 
+if (as.POSIXlt(forecast_due_date)$wday != 3L) {
+  cli::cli_alert_warning("forecast_due_date is expected to be a Wednesday, but it's not")
+  Sys.sleep(3)
+}
+
 output_dir <- here::here("data-forecasts")
 if (!dir.exists(output_dir)) {
   dir.create(output_dir, recursive = TRUE)
