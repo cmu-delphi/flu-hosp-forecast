@@ -1,23 +1,20 @@
 # Naive direction forecaster.
 #
-# This forecaster is based on the assumption that the direction of the forecast
-# is the same as the direction of the recent trend. The directions are obtained
-# as follows:
+# This forecaster tries to convert predictions for the FluSight quantile targets
+# into predictions for the categorical trends targets in a revision-unaware way.
+# The directions are obtained as follows:
 #
-#  - For each state, we compute the 7-day sum of the most recent 7 days of data
-#    available.
-#  - TODO: Currently, we compare the forecasts of the 7-day sum from Sun-Sat to
-#    the 7-day sum from the previous Sat-Fri, because of data latency. Either we
-#    will get data from HHS to fix this or we can write a function to impute the
-#    missing Saturday data.
-#  - For each geo and horizon, we calculate the probability that the forecast is
-#    in each of the following categories:
+#  - For each state, we compute the 7-day sum of the most recent Sat-Fri run of
+#    data available and call that the reference count.
+#  - We compare the quantile forecasts of the 7-day sum Sat-Fri with the
+#    reference count. For each geo and horizon, we calculate the probability
+#    that the forecast is in each of the following categories:
 #
-#    - large decrease: 2 * thresh below the reference 7-day sum
-#    - decrease: thresh below the reference 7-day sum
+#    - large decrease: 2 * thresh below the reference count
+#    - decrease: thresh below the reference count
 #    - stable: not in any of the categories above or below
-#    - increase: thresh above the reference 7-day sum
-#    - large increase: 2 * thresh above the reference 7-day sum
+#    - increase: thresh above the reference count
+#    - large increase: 2 * thresh above the reference count
 #
 #   where thresh is the increase count threshold for the given horizon and geo.
 #   These thresholds are defined in R/utils.R in get_flusight_location_data().
