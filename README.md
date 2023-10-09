@@ -24,6 +24,8 @@ python run.py --help
 ## Directory Layout
 
 -   `run.R` - the main R script for the forecaster
+-   `run.py` - a CLI utility for running the forecaster and submitting to the
+    FluSight repo
 -   `Makefile` - a Makefile for installing dependencies
 -   `R/` - importable R functions for the forecaster
 -   `scripts/` - other pipeline scripts
