@@ -109,7 +109,6 @@ get_quantile_predictions <- function(
     offline_signal_dir = offline_signal_dir
   ) %>% make_caching_forecaster("ens1", forecast_cache_dir)
 
-
   t0 <- Sys.time()
   preds_state <- get_predictions(ens1,
     cmu_forecaster_name,
@@ -121,7 +120,11 @@ get_quantile_predictions <- function(
   t1 <- Sys.time()
   print(t1 - t0)
 
-  preds_state %<>% mutate(forecast_date = reference_date) %>%
+  preds_state %<>% mutate(
+    forecast_date = reference_date,
+    # Address unlikely rounding issues in quantile values.
+    quantile = as.character(signif(quantile, 4))
+  ) %>%
     get_postprocessed_forecasts()
 
   return(preds_state)
