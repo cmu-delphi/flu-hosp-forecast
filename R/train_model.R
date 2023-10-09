@@ -32,7 +32,7 @@ get_quantile_predictions <- function(
   )
   offline_signal_dir <- here::here("cache", "evalcast")
   forecast_cache_dir <- here::here("cache", "forecasters")
-  n_core <- parallel::detectCores()
+  n_core <- parallel::detectCores() - 1
 
   make_start_day_ar <- function(ahead, ntrain, lags) {
     # NOTE: Why eval?
@@ -60,43 +60,49 @@ get_quantile_predictions <- function(
   )
 
   production_forecaster_shortwindow_latencyfix <- list(
-    forecaster = make_forecaster_with_prespecified_args(
-      forecaster = quantgen_forecaster %>%
-        make_forecaster_account_for_response_latency(),
-      signals = signals_ar,
-      incidence_period = "day",
-      ahead = ahead,
-      geo_type = geo_type,
-      tau = tau,
-      n = ntrain_shortwindow,
-      lags = lags,
-      lambda = 0,
-      nonneg = TRUE,
-      sort = TRUE,
-      lp_solver = "gurobi",
-      n_core = n_core
-    ) %>%
+    forecaster = quantgen_forecaster %>%
+      make_forecaster_account_for_response_latency() %>%
+      make_latency_enforced_forecaster(
+        min_latency_to_enforce = 12
+      ) %>%
+      make_forecaster_with_prespecified_args(
+        signals = signals_ar,
+        incidence_period = "day",
+        ahead = ahead,
+        geo_type = geo_type,
+        tau = tau,
+        n = ntrain_shortwindow,
+        lags = lags,
+        lambda = 0,
+        nonneg = TRUE,
+        sort = TRUE,
+        lp_solver = "gurobi",
+        n_core = n_core
+      ) %>%
       make_named_forecaster("shortwindow_latencyfix"),
     signals = signals_ar
   )
 
   production_forecaster_nowindow_latencyfix <- list(
-    forecaster = make_forecaster_with_prespecified_args(
-      forecaster = quantgen_forecaster %>%
-        make_forecaster_account_for_response_latency(),
-      signals = signals_ar,
-      incidence_period = "day",
-      ahead = ahead,
-      geo_type = geo_type,
-      tau = tau,
-      n = ntrain_nowindow,
-      lags = lags,
-      lambda = 0,
-      nonneg = TRUE,
-      sort = TRUE,
-      lp_solver = "gurobi",
-      n_core = n_core
-    ) %>%
+    forecaster = quantgen_forecaster %>%
+      make_forecaster_account_for_response_latency() %>%
+      make_latency_enforced_forecaster(
+        min_latency_to_enforce = 12
+      ) %>%
+      make_forecaster_with_prespecified_args(
+        signals = signals_ar,
+        incidence_period = "day",
+        ahead = ahead,
+        geo_type = geo_type,
+        tau = tau,
+        n = ntrain_nowindow,
+        lags = lags,
+        lambda = 0,
+        nonneg = TRUE,
+        sort = TRUE,
+        lp_solver = "gurobi",
+        n_core = n_core
+      ) %>%
       make_named_forecaster("nowindow_latencyfix"),
     signals = signals_ar
   )

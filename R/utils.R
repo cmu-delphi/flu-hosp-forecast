@@ -185,3 +185,19 @@ get_state_data <- function() {
     rename(geo_value = state_id) %>%
     select(-state_name)
 }
+
+#' make_latency_enforced_forecaster
+#'
+#' This function takes a forecaster and returns a forecaster that enforces a
+#' minimum latency. This allows us to do backcasting on training data that did
+#' not have latency as severe as what we have in 2023.
+make_latency_enforced_forecaster <- function(forecaster, min_latency_to_enforce, ...) {
+  function(df_list, forecast_date, ...) {
+    forecaster(
+      df_list %>%
+        map(~ .x %>% filter(time_value <= forecast_date - min_latency_to_enforce)),
+      forecast_date,
+      ...
+    )
+  }
+}

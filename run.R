@@ -41,6 +41,7 @@ forecast_generation_date <- as.Date(Sys.getenv(
   "FORECAST_GENERATION_DATE",
   unset = Sys.Date()
 ))
+# forecast_generation_date <- as.Date("2022-12-01")
 forecast_due_date <- as.Date(Sys.getenv(
   "FORECAST_DUE_DATE",
   unset = get_next_weekday(forecast_generation_date, 4)
