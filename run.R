@@ -5,9 +5,12 @@
 #
 # The forecast generation date is usually today. The due date is the date of the
 # forecast, which should be the most recent previous a Wednesday (it is also the
-# effective as of date for requesting API data). The reference date is the
-# Saturday after the due date. The horizons are the number of weeks ahead to
-# forecast, relative to the reference date.
+# effective as of date for requesting API data). The CDC defines the reference
+# date to be the Saturday after the due date; this refers to unshifted data from
+# "previous day hospital admissions" data provided by NHSN, which Delphi has
+# already shifted. Therefore Delphi and CDC reference dates are off by one. The
+# horizons are the number of weeks ahead to forecast, relative to the reference
+# date.
 #
 # To exclude a state from the forecast, add its two-letter state code to the
 # exclude_geos vector below. "as", "gu", "mp", and "vi" are excluded by default
@@ -40,7 +43,8 @@ forecast_due_date <- as.Date(Sys.getenv(
   "FORECAST_DUE_DATE",
   unset = get_previous_weekday(forecast_generation_date, 4)
 ))
-reference_date <- get_next_weekday(forecast_due_date, 0)
+cdc_reference_date <- get_next_weekday(forecast_due_date, 0)
+delphi_reference_date <- cdc_reference_date - 1L
 horizons <- -1:3
 exclude_geos <- tolower(c(
   c("as", "gu", "mp", "vi"),
@@ -60,21 +64,26 @@ if (!dir.exists(output_dir)) {
 ##### Make quantile forecasts.
 quantile_predictions <- get_quantile_predictions(
   forecast_due_date,
-  reference_date,
+  delphi_reference_date,
   horizons
 )
 
 ##### Make direction forecasts.
 direction_predictions <- get_direction_predictions(
   forecast_due_date,
-  reference_date,
+  delphi_reference_date,
   quantile_predictions
 )
 
 ##### Combine and write the submissions file.
 combined_predictions <- bind_rows(
-  quantile_predictions %>% mutate(output_type_id = as.character(output_type_id)),
+  quantile_predictions,
   direction_predictions
+) %>% mutate(
+  # Fix the reference date and the corresponding target dates to conform with
+  # the CDC's definition.
+  reference_date = reference_date + 1L,
+  target_end_date = target_end_date + 1L,
 )
 
 write_csv(
@@ -108,7 +117,6 @@ write_csv(
     output_dir,
     sprintf("%s-CMU-TimeSeries.csv", reference_date)
   ),
-  # TODO: Quote all except for value?
   # quote='all' makes sure the location column is quoted.
   quote = "all"
 )
