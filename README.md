@@ -15,7 +15,7 @@ source venv/bin/activate
 python run.py forecast
 
 # Run the forecasts on a given date
-FORECAST_DUE_DATE="2023-02-28" python run.py forecast
+FORECAST_DUE_DATE="2023-10-11" python run.py forecast
 
 # See more CLI commands
 python run.py --help
