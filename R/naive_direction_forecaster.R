@@ -69,8 +69,9 @@ get_direction_predictions <- function(
     )
   )
 
-  # By the cadence of HHS data, we expect to have data up to Friday 12 days back
-  # from the forecast due date. We get the latest 7 day sum of the data available.
+  # By the cadence of HHS data, we expect to have "official"/non-"preliminary"
+  # versions of data up to Friday 12 days back from the forecast due date. We
+  # get the latest 7 day sum of the "official" data available.
   reference_7d_counts <- short_snapshot %>%
     filter(time_value <= forecast_due_date - 12L) %>%
     group_by(geo_value) %>%
