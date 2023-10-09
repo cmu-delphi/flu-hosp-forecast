@@ -10,17 +10,19 @@
 #    reference count. For each geo and horizon, we calculate the probability
 #    that the forecast is in each of the following categories:
 #
-#    - large decrease: 2 * thresh below the reference count
-#    - decrease: thresh below the reference count
-#    - stable: not in any of the categories above or below
-#    - increase: thresh above the reference count
-#    - large increase: 2 * thresh above the reference count
+#    - large decrease: P(forecast <= reference count - large_thresh)
+#    - decrease: P(reference count - large_thresh < forecast <= reference count
+#      - stable_thresh)
+#    - stable: P(reference count - stable_thresh < forecast < reference count +
+#      stable_thresh)
+#    - increase: P(reference count + stable_thresh <= forecast < reference count
+#      + large_thresh)
+#    - large increase: P(reference count + large_thresh <= forecast)
 #
-#   where thresh is the increase count threshold for the given horizon and geo.
-#   These thresholds are defined in R/utils.R in get_flusight_location_data().
-#   Looking at the previous year's data for the same thresholds, we saw that the
-#   thresholds for count_rate1per100k and count_rate1per100k were related by a
-#   factor of 2, so we use the same factor of 2 here.
+#   where large_thresh and stable_thresh are thresholds based on horizon and geo
+#   population. These thresholds are defined in R/utils.R in
+#   get_flusight_location_data() and in the FluSight guidelines document
+#   Appendix 1.
 #
 
 library(checkmate)
@@ -116,22 +118,24 @@ get_direction_predictions <- function(
       value = {
         stopifnot(length(forecast_acdf) == 1L)
         if (horizon == -1) {
-          thresh <- increase_count_1_thresh
+          large_thresh <- increase_count_2_thresh
+          stable_thresh <- increase_count_1_thresh
         } else if (horizon == 0) {
-          thresh <- increase_count_2_thresh
+          large_thresh <- increase_count_3_thresh
+          stable_thresh <- increase_count_1_thresh
         } else if (horizon == 1) {
-          thresh <- increase_count_3_thresh
-        } else if (horizon == 2) {
-          thresh <- increase_count_4_thresh
-        } else if (horizon == 3) {
-          thresh <- increase_count_5_thresh
+          large_thresh <- increase_count_4_thresh
+          stable_thresh <- increase_count_2_thresh
+        } else if (horizon == 2 || horizon == 3) {
+          large_thresh <- increase_count_5_thresh
+          stable_thresh <- increase_count_2p5_thresh
         } else {
           stop("horizon must be in -1:3")
         }
-        p_large_dec <- p_le(forecast_acdf[[1L]], reference_7dcount - 2 * thresh)
-        p_large_or_nonlarge_dec <- p_le(forecast_acdf[[1L]], reference_7dcount - thresh)
-        p_large_or_nonlarge_inc <- p_ge(forecast_acdf[[1L]], reference_7dcount + thresh)
-        p_large_inc <- p_ge(forecast_acdf[[1L]], reference_7dcount + 2 * thresh)
+        p_large_dec <- p_le(forecast_acdf[[1L]], reference_7dcount - large_thresh)
+        p_large_or_nonlarge_dec <- p_le(forecast_acdf[[1L]], reference_7dcount - stable_thresh)
+        p_large_or_nonlarge_inc <- p_ge(forecast_acdf[[1L]], reference_7dcount + stable_thresh)
+        p_large_inc <- p_ge(forecast_acdf[[1L]], reference_7dcount + large_thresh)
         result <- c(
           p_large_dec,
           p_large_or_nonlarge_dec - p_large_dec,
