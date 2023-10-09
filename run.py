@@ -6,9 +6,9 @@ committing to the repo, and posting to Slack. It can also generate the
 forecasts.
 
 The generation date is usually today. The due date is the date of the forecast,
-which should be the most recent previous Wednesday (it is also the effective as
-of date for requesting API data). The reference date is the Saturday after the
-due date.
+which should be the most recent next Wednesday (it is also the effective as of
+date for requesting API data). The reference date is the Saturday after the due
+date.
 
 We assume that the submission repo path is set in the environment variable
 FLU_SUBMISSIONS_PATH. The submission repo for the 2023-2024 season is at
@@ -60,7 +60,7 @@ def get_previous_weekday(cur_date: datetime, weekday: int) -> datetime:
 
 DATE_FORMAT = "%Y-%m-%d"
 FORECAST_GENERATION_DATE = datetime.today()
-FORECAST_DUE_DATE = get_previous_weekday(FORECAST_GENERATION_DATE, 2)
+FORECAST_DUE_DATE = get_next_weekday(FORECAST_GENERATION_DATE, 2)
 REFERENCE_DATE = get_next_weekday(FORECAST_DUE_DATE, 5)
 FLU_SUBMISSION_DIR = (
     Path(os.environ.get("FLU_SUBMISSIONS_PATH", "")) / "model-output" / "CMU-TimeSeries"

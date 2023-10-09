@@ -108,7 +108,7 @@ get_direction_predictions <- function(
       location
     ) %>%
     summarize(
-      forecast_acdf = list(approx_cdf_from_quantiles(value, output_type_id)),
+      forecast_acdf = list(approx_cdf_from_quantiles(value, parse_number(output_type_id))),
       .groups = "keep"
     ) %>%
     left_join(augmented_location_data %>% select(-geo_value), by = "location") %>%
@@ -157,11 +157,14 @@ get_direction_predictions <- function(
 
   # Sanity check that the output probabilities sum to 1.
   stopifnot(
-    all(abs(1 -
+    all(
       direction_predictions %>%
-      group_by(reference_date, horizon, location) %>%
-      summarize(value = sum(value)) %>%
-      pull(value)) < 1e-8)
+        group_by(reference_date, horizon, location, geo_value) %>%
+        summarize(value = abs(1 - sum(value)) < 1e-8) %>%
+        # Ignore NAs here.
+        filter(!is.na(value)) %>%
+        pull(value)
+    )
   )
 
   return(direction_predictions)
