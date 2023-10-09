@@ -88,7 +88,9 @@ get_direction_predictions <- function(
     as.numeric(forecast_due_date - as.Date("2020-10-16")) / (365 + 1 / 4 - 1 / 100 + 1 / 400) *
       # say there's one wave/season per year
       1 *
-      # say states from separate HHS Regions are "separate" enough to count as different data points, while those within the same region aren't separate enough; 10 HHS Regions = 10 buckets
+      # say states from separate HHS Regions are "separate" enough to count as
+      # different data points, while those within the same region aren't
+      # separate enough; 10 HHS Regions = 10 buckets
       10
   )
 
