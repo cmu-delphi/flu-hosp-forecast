@@ -110,6 +110,7 @@ get_direction_predictions <- function(
     left_join(augmented_location_data %>% select(-geo_value), by = "location") %>%
     left_join(reference_7d_counts, by = "geo_value") %>%
     reframe(
+      target = "wk flu hosp rate change",
       output_type = "pmf",
       output_type_id = c("large_decrease", "decrease", "stable", "increase", "large_increase"),
       value = {
