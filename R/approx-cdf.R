@@ -1,3 +1,14 @@
+# Approximate CDFs with jumps and slopes
+#
+# See this presentation for the ideas behind this code:
+#
+#   https://docs.google.com/presentation/d/1oOvhecbGNYyacVzJdWN0NFVHXAtFRvAfn3-IBcAc5A0/edit#slide=id.g218340d910f_0_0
+#
+# TODO: Refactor to use better names.
+#
+# Some additional notes in approx_cdf_from_quantiles() below.
+
+
 library("assertthat")
 library("dplyr")
 library("ggplot2")
@@ -146,15 +157,22 @@ approx_cdf_from_quantiles <- function(quantiles, probs) {
   assert_that(is_double(probs))
   assert_that(all(0 <= probs & probs <= 1))
 
-  # NOTE: What's the purpose of this run-length encoding?
+  # Run-length encoding helps deal with situations where there are multiple
+  # quantiles with the same value. Approxfun uses default `ties = mean`, which
+  # is not what we want.
+  #
+  # We want to represent a piecewise linear + jumps function. There are various
+  # ways you might think of representing this. One way to do this would be
+  # represent the piecewise linear part and the jump part separately. Another
+  # way, used here, is to keep a list of x values, F(x-) values (cdf.ys.before),
+  # and F(x) values (cdf.ys.at). (I think both of these representation options
+  # have their awkward moments when using, but not sure which has fewer.)
+  #
+  # TODO: Refactor to use better names.
   rle.quantiles <- rle(quantiles)
-  # NOTE: cdf.xs appears to be identical to quantiles.
   cdf.xs <- rle.quantiles[["values"]]
-  # NOTE: cdf.ys.at.inds appears to be identical to seq_along(probs).
   cdf.ys.at.inds <- cumsum(rle.quantiles[["lengths"]])
   cdf.ys.before.inds <- cdf.ys.at.inds - rle.quantiles[["lengths"]] + 1L
-  # NOTE: The following two appear to be identical to c(0.0, probs, 1.0), but
-  # shifted by 1 index.
   cdf.ys.at <- `[<-`(probs[cdf.ys.at.inds], length(cdf.xs), 1)
   cdf.ys.before <- `[<-`(probs[cdf.ys.before.inds], 1L, 0)
   approx_cdf(cdf.xs, cdf.ys.before, cdf.ys.at)
