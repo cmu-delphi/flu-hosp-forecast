@@ -35,7 +35,7 @@ response_data_source <- "hhs"
 response_signal <- "confirmed_admissions_influenza_1d_prop_7dav"
 ahead <- 4 + 7 * (0:3)
 lags <- c(0, 7, 14)
-tau <- evalcast::covidhub_probs()
+tau <- c(0.01, .025, 1:19 / 20, .975, .99)
 states_dc_pr_vi <- c(
   "al", "ak", "az", "ar", "ca", "co", "ct", "dc", "de", "fl",
   "ga", "hi", "id", "il", "in", "ia", "ks", "ky", "la", "me",

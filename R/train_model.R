@@ -21,7 +21,7 @@ get_quantile_predictions <- function(
   ntrain_shortwindow <- 21
   ntrain_nowindow <- 20L * 365L
   lags <- c(0, 7, 14)
-  tau <- evalcast::covidhub_probs()
+  tau <- c(0.01, .025, 1:19 / 20, .975, .99)
   states_dc_pr_vi <- c(
     "al", "ak", "az", "ar", "ca", "co", "ct", "dc", "de", "fl",
     "ga", "hi", "id", "il", "in", "ia", "ks", "ky", "la", "me",
