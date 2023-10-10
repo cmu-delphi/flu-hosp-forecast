@@ -131,7 +131,7 @@ def set_vars(force: bool = False):
 def copy_to_repo():
     """Copy predictions to the submission repo.
 
-    The repo path is specified in the env var FLU_FORECASTER_PATH.
+    The repo path is specified in the env var FLU_SUBMISSIONS_PATH.
     """
     shutil.copy(FLU_PREDICTIONS_FILE, FLU_SUBMISSION_DIR)
 
@@ -167,7 +167,7 @@ def switch_to_branch(repo: git.Repo, branch_name: str):
 def commit_to_repo():
     """Commit to submission repo.
 
-    The repo path is specified in the env var FLU_FORECASTER_PATH.
+    The repo path is specified in the env var FLU_SUBMISSIONS_PATH.
 
     Can't use git.index because we're using a sparse index. So we use the CLI
     wrapper in git instead.
@@ -192,7 +192,7 @@ def commit_to_repo():
 def push_to_repo():
     """Push to the submission remote.
 
-    The repo path is specified in the env var FLU_FORECASTER_PATH.
+    The repo path is specified in the env var FLU_SUBMISSIONS_PATH.
     """
     flu_submissions_repo = git.Repo(os.environ["FLU_SUBMISSIONS_PATH"])
     assert flu_submissions_repo.remote(name="origin").exists()
@@ -207,7 +207,7 @@ def push_to_repo():
 def submit():
     """Copy, commit, and push to the submission repo.
 
-    The repo path is specified in the env var FLU_FORECASTER_PATH.
+    The repo path is specified in the env var FLU_SUBMISSIONS_PATH.
     """
     flu_submissions_repo = git.Repo(os.environ["FLU_SUBMISSIONS_PATH"])
     assert flu_submissions_repo.remote(name="origin").exists()
