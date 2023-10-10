@@ -1,6 +1,8 @@
 """
 Forecaster runner utility.
 
+See python run.py --help for usage.
+
 This utility mostly handles the process of copying the submission files,
 committing to the repo, and posting to Slack. It can also generate the
 forecasts.
@@ -15,7 +17,6 @@ FLU_SUBMISSIONS_PATH. The submission repo for the 2023-2024 season is at
 
     https://github.com/cdcepi/FluSight-forecast-hub/
 
-See python forecaster.py --help for usage.
 """
 
 import os
@@ -58,36 +59,6 @@ def get_previous_weekday(cur_date: datetime, weekday: int) -> datetime:
     return cur_date - timedelta((7 - weekday + cur_date.weekday()) % 7)
 
 
-DATE_FORMAT = "%Y-%m-%d"
-FORECAST_GENERATION_DATE = datetime.today()
-FORECAST_DUE_DATE = get_next_weekday(FORECAST_GENERATION_DATE, 2)
-REFERENCE_DATE = get_next_weekday(FORECAST_DUE_DATE, 5)
-FLU_SUBMISSION_DIR = (
-    Path(os.environ.get("FLU_SUBMISSIONS_PATH", "")) / "model-output" / "CMU-TimeSeries"
-)
-FLU_PREDICTIONS_FILE = (
-    Path(os.getcwd())
-    / "data-forecasts"
-    / f"{REFERENCE_DATE:%Y-%m-%d}-CMU-TimeSeries.csv"
-)
-FLU_PREDICTIONS_NOTEBOOK = (
-    Path(os.getcwd())
-    / "data-forecasts"
-    / f"{REFERENCE_DATE:%Y-%m-%d}-flu-forecast.html"
-)
-
-
-@app.command("forecast")
-def make_forecasts():
-    """Make flu forecasts for the most recent Wednesday.
-
-    Writes to data-forecasts/CMU-TimeSeries/.
-    """
-    # Set this to "production", to use the production cache
-    os.environ["FLU_CACHE"] = os.environ.get("FLU_CACHE", "exploration")
-    subprocess.run(["Rscript", "run.R"], check=True)
-
-
 def check_exists(path: Path):
     if not path.exists():
         raise FileNotFoundError(f"{path} not found.")
@@ -99,6 +70,46 @@ def check_and_set_var(key: str, msg: str, force: bool = False):
         path = input(f"{msg}")
         check_exists(Path(path))
         set_key(".env", key, path, export=True)
+
+
+DATE_FORMAT = "%Y-%m-%d"
+FORECAST_GENERATION_DATE = datetime.today()
+FORECAST_DUE_DATE = get_next_weekday(FORECAST_GENERATION_DATE, 2)
+REFERENCE_DATE = get_next_weekday(FORECAST_DUE_DATE, 5)
+FLU_PREDICTIONS_FILE = (
+    Path(os.getcwd())
+    / "data-forecasts"
+    / f"{REFERENCE_DATE:%Y-%m-%d}-CMU-TimeSeries.csv"
+)
+FLU_PREDICTIONS_NOTEBOOK = (
+    Path(os.getcwd())
+    / "data-forecasts"
+    / f"{REFERENCE_DATE:%Y-%m-%d}-flu-forecast.html"
+)
+if not os.environ.get("FLU_SUBMISSIONS_PATH"):
+    check_and_set_var(
+        "FLU_SUBMISSIONS_PATH",
+        "Please enter the path to 'Flusight-forecast-data' (e.g. /Users/username/Documents/Flusight-forecast-data): ",
+    )
+FLU_SUBMISSION_DIR = (
+    Path(os.environ.get("FLU_SUBMISSIONS_PATH", "")) / "model-output" / "CMU-TimeSeries"
+)
+if not os.environ.get("SLACK_BOT_TOKEN"):
+    check_and_set_var(
+        "SLACK_BOT_TOKEN",
+        "Please enter your Slack bot token: ",
+    )
+
+
+@app.command("forecast")
+def make_forecasts():
+    """Make flu forecasts for the most recent Wednesday.
+
+    Writes to data-forecasts/CMU-TimeSeries/.
+    """
+    # Set this to "production", to use the production cache
+    os.environ["FLU_CACHE"] = os.environ.get("FLU_CACHE", "exploration")
+    subprocess.run(["Rscript", "run.R"], check=True)
 
 
 @app.command("set-vars")

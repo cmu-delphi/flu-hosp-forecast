@@ -28,9 +28,7 @@ flu_forecasts <- read_csv(params$predictions_file, show_col_types = FALSE) %>%
     forecast_date = reference_date,
     quantile = output_type_id
   ) %>%
-  filter(
-    !(quantile %in% c("large_increase", "increase", "stable", "decrease", "large_decrease"))
-  ) %>%
+  filter(output_type != "pmf") %>%
   mutate(
     quantile = parse_number(quantile)
   )

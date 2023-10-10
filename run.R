@@ -90,13 +90,13 @@ combined_predictions <- bind_rows(
     target_end_date = target_end_date + 1L,
   ) %>%
   arrange(location, reference_date, target, horizon, output_type, output_type_id)
-
+unfiltered_csv_path <- fs::path(
+  output_dir,
+  sprintf("%s-CMU-TimeSeries-unfiltered.csv", cdc_reference_date)
+)
 write_csv(
   combined_predictions,
-  fs::path(
-    output_dir,
-    sprintf("%s-CMU-TimeSeries-unfiltered.csv", cdc_reference_date)
-  ),
+  unfiltered_csv_path,
   # quote='all' makes sure the location column is quoted.
   quote = "all"
 )
@@ -115,13 +115,13 @@ keeps <- c(
 filtered_combined_predictions <- combined_predictions %>%
   filter(!geo_value %in% exclude_geos) %>%
   select(all_of(keeps))
-
+filtered_csv_path <- fs::path(
+  output_dir,
+  sprintf("%s-CMU-TimeSeries.csv", cdc_reference_date)
+)
 write_csv(
   filtered_combined_predictions,
-  fs::path(
-    output_dir,
-    sprintf("%s-CMU-TimeSeries.csv", cdc_reference_date)
-  ),
+  filtered_csv_path,
   # quote='all' makes sure the location column is quoted.
   quote = "all"
 )
@@ -135,9 +135,6 @@ rmarkdown::render(
   ),
   params = list(
     exclude_geos = exclude_geos,
-    predictions_file = fs::path(
-      output_dir,
-      sprintf("%s-CMU-TimeSeries-unfiltered.csv", cdc_reference_date)
-    )
+    predictions_file = unfiltered_csv_path
   )
 )
