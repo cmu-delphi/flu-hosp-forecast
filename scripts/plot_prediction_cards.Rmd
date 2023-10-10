@@ -23,15 +23,7 @@ source(here::here("R", "plotting.R"))
 epidatr::set_cache(here::here("cache", "epidatr"))
 
 
-flu_forecasts <- read_csv(params$predictions_file, show_col_types = FALSE) %>%
-  mutate(
-    forecast_date = reference_date,
-    quantile = output_type_id
-  ) %>%
-  filter(output_type != "pmf") %>%
-  mutate(
-    quantile = parse_number(quantile)
-  )
+flu_forecasts <- read_csv(params$predictions_file, show_col_types = FALSE)
 ```
 
 ## Trajectory plots
@@ -41,11 +33,9 @@ flu_forecasts <- read_csv(params$predictions_file, show_col_types = FALSE) %>%
 
 ```{r, fig.height = 80, fig.width = 15, echo=FALSE}
 # setup the plot and join corrections to the truth
-plot_state_forecasters(
-  flu_forecasts %>% filter(geo_value != "us"),
-  exclude_geos = params$exclude_geos,
-  start_day = "2023-01-01",
-  ncol = 2
+plot_state_quantile_forecasts(
+  flu_forecasts,
+  exclude_geos = params$exclude_geos
 ) %>%
   suppressMessages() %>%
   suppressWarnings() %>%
@@ -54,12 +44,15 @@ plot_state_forecasters(
 
 ```{r, fig.height = 10, fig.width = 15, echo=FALSE}
 # setup the plot and join corrections to the truth
-plot_nation_forecasters(
-  flu_forecasts %>% filter(geo_value == "us"),
-  exclude_geos = params$exclude_geos,
-  start_day = "2023-01-01"
+plot_nation_quantile_forecasts(
+  flu_forecasts,
+  exclude_geos = params$exclude_geos
 ) %>%
   suppressMessages() %>%
   suppressWarnings() %>%
   plotly::ggplotly()
+```
+
+```{r, fig.height = 80, fig.width = 15, echo=FALSE}
+
 ```
