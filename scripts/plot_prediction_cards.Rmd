@@ -1,0 +1,65 @@
+---
+title: "Flu Forecasts"
+author: "Team Flu"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output: html_document
+params:
+  exclude_geos: !r character(0L)
+  predictions_file: !r character(0L)
+---
+
+```{r setup, include=FALSE, echo=FALSE}
+library(aws.s3)
+library(covidcast)
+library(evalcast)
+library(lubridate)
+library(magrittr)
+library(pipeR)
+library(readr)
+library(tidyverse)
+library(zookeeper)
+
+source(here::here("R", "plotting.R"))
+epidatr::set_cache(here::here("cache", "epidatr"))
+
+
+flu_forecasts <- read_csv(params$predictions_file, show_col_types = FALSE) %>%
+  mutate(
+    forecast_date = reference_date,
+    quantile = output_type_id
+  ) %>%
+  filter(output_type != "pmf") %>%
+  mutate(
+    quantile = parse_number(quantile)
+  )
+```
+
+## Trajectory plots
+
+- Fan displays 50/80/95% confidence intervals
+- Black line is `confirmed_admissions_influenza_1d_7dav`.
+
+```{r, fig.height = 80, fig.width = 15, echo=FALSE}
+# setup the plot and join corrections to the truth
+plot_state_forecasters(
+  flu_forecasts %>% filter(geo_value != "us"),
+  exclude_geos = params$exclude_geos,
+  start_day = "2023-01-01",
+  ncol = 2
+) %>%
+  suppressMessages() %>%
+  suppressWarnings() %>%
+  plotly::ggplotly()
+```
+
+```{r, fig.height = 10, fig.width = 15, echo=FALSE}
+# setup the plot and join corrections to the truth
+plot_nation_forecasters(
+  flu_forecasts %>% filter(geo_value == "us"),
+  exclude_geos = params$exclude_geos,
+  start_day = "2023-01-01"
+) %>%
+  suppressMessages() %>%
+  suppressWarnings() %>%
+  plotly::ggplotly()
+```
