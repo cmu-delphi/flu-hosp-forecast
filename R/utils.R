@@ -1,9 +1,11 @@
 #' Returns the next instance of a given weekday. If that is today, return today.
+#' Weekday 0 is a Sunday.
 get_next_weekday <- function(date, wday) {
   return(as.Date(date) + (wday - lubridate::wday(date)) %% 7)
 }
 
 #' Returns the previous instance of a given weekday. If that is today, return today.
+#' Weekday 0 is a Sunday.
 get_previous_weekday <- function(date, wday) {
   return(as.Date(date) - (7 - (wday - lubridate::wday(date)) %% 7))
 }
