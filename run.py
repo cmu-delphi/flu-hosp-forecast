@@ -107,8 +107,6 @@ def make_forecasts():
 
     Writes to data-forecasts/CMU-TimeSeries/.
     """
-    # Set this to "production", to use the production cache
-    os.environ["FLU_CACHE"] = os.environ.get("FLU_CACHE", "exploration")
     subprocess.run(["Rscript", "run.R"], check=True)
 
 
