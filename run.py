@@ -89,7 +89,7 @@ FLU_PREDICTIONS_NOTEBOOK = (
 if not os.environ.get("FLU_SUBMISSIONS_PATH"):
     check_and_set_var(
         "FLU_SUBMISSIONS_PATH",
-        "Please enter the path to 'Flusight-forecast-data' (e.g. /Users/username/Documents/Flusight-forecast-data): ",
+        "Please enter the path to 'FluSight-forecast-hub' (e.g. /Users/username/Documents/FluSight-forecast-hub): ",
     )
 FLU_SUBMISSION_DIR = (
     Path(os.environ.get("FLU_SUBMISSIONS_PATH", "")) / "model-output" / "CMU-TimeSeries"
@@ -108,22 +108,6 @@ def make_forecasts():
     Writes to data-forecasts/CMU-TimeSeries/.
     """
     subprocess.run(["Rscript", "run.R"], check=True)
-
-
-@app.command("set-vars")
-def set_vars(force: bool = False):
-    """Set environment variables for the utility."""
-    print(
-        "Checking and setting environment variables... (press Enter to skip any variable)"
-    )
-    check_and_set_var(
-        "FLU_SUBMISSIONS_PATH",
-        "Please enter the path to 'Flusight-forecast-data' (e.g. /Users/username/Documents/Flusight-forecast-data): ",
-        force=force,
-    )
-    check_and_set_var(
-        "SLACK_BOT_TOKEN", "Please enter your Slack bot token: ", force=force
-    )
 
 
 def copy_to_repo():
