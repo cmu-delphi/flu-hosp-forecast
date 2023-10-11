@@ -32,6 +32,7 @@
 library(dotenv)
 library(dplyr)
 library(magrittr)
+library(hubValidations)
 
 source(here::here("R", "train_model.R"))
 source(here::here("R", "naive_direction_forecaster.R"))
@@ -168,7 +169,6 @@ rmarkdown::render(
 # )
 
 # ##### Validate the submission file.
-# library(hubValidations)
 # hubValidations::validate_submission(
 #   hub_path = Sys.getenv("FLU_SUBMISSIONS_PATH", unset = "."),
 #   file_path = fs::path(
