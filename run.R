@@ -16,14 +16,16 @@
 # exclude_geos vector below. "as", "gu", "mp", and "vi" are excluded by default
 # due to lack of data.
 #
+# If you want to clear the cache, set the FLU_HOSP_CLEAR_CACHE environment to
+# TRUE.
+#
 # Outputs:
 #
 #  - submission file:
 #    data-forecasts/CMU-TimeSeries/YYYY-MM-DD-CMU-TimeSeries.csv
 #  - ensemble file:
 #    data-forecasts/CMU-TimeSeries/generated-%s-reference-date-%s-CMU-TimeSeries-quantile-predictions.csv
-#  - notebook file:
-#    data-forecasts/CMU-TimeSeries/YYYY-MM-DD-flu-forecast.html
+#  - notebook file: data-forecasts/CMU-TimeSeries/YYYY-MM-DD-flu-forecast.html
 #  - cache files in cache/
 #
 
@@ -33,8 +35,6 @@ library(magrittr)
 source(here::here("R", "train_model.R"))
 source(here::here("R", "naive_direction_forecaster.R"))
 
-
-epidatr::set_cache(here::here("cache", "epidatr"), confirm = FALSE)
 
 ##### Set parameters.
 forecast_generation_date <- as.Date(Sys.getenv(
@@ -62,6 +62,20 @@ if (as.POSIXlt(forecast_due_date)$wday != 3L) {
 output_dir <- here::here("data-forecasts")
 if (!dir.exists(output_dir)) {
   dir.create(output_dir, recursive = TRUE)
+}
+
+##### Cache setup.
+epidatr::set_cache(here::here("cache", "epidatr"), confirm = FALSE)
+if (Sys.getenv("FLU_HOSP_CLEAR_CACHE", unset = FALSE)) {
+  epidatr::clear_cache(here::here("cache", "epidatr"), confirm = FALSE)
+  # Clear evalcast cache.
+  if (dir.exists(here::here("cache", "evalcast"))) {
+    fs::dir_delete(here::here("cache", "evalcast"))
+  }
+  # Clear forecaster cache.
+  if (file.exists(here::here("cache", "forecaster", "ens1", sprintf("%s.RDS", cdc_reference_date - 3L)))) {
+    fs::file_delete(here::here("cache", "forecaster", "ens1", sprintf("%s.RDS", cdc_reference_date - 3L)))
+  }
 }
 
 ##### Make quantile forecasts.

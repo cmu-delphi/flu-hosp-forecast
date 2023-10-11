@@ -102,13 +102,17 @@ if not os.environ.get("SLACK_BOT_TOKEN"):
 
 
 @app.command("forecast")
-def make_forecasts():
+def make_forecasts(
+    clear_cache: bool = typer.Option(
+        False, "--clear-cache", "-c", help="Clear the caches before making forecasts."
+    )
+):
     """Make flu forecasts for the most recent Wednesday.
 
     Writes to data-forecasts/CMU-TimeSeries/.
     """
-    # Set this to "production", to use the production cache
-    os.environ["FLU_CACHE"] = os.environ.get("FLU_CACHE", "exploration")
+    if clear_cache:
+        os.environ["FLU_HOSP_CLEAR_CACHE"] = "TRUE"
     subprocess.run(["Rscript", "run.R"], check=True)
 
 
