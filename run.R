@@ -154,25 +154,25 @@ rmarkdown::render(
   )
 )
 
-##### Copy submission file to repo.
-submission_path <- fs::path(
-  Sys.getenv("FLU_SUBMISSIONS_PATH", unset = "."),
-  "model-output",
-  "CMU-TimeSeries",
-  sprintf("%s-CMU-TimeSeries.csv", cdc_reference_date)
-)
-fs::file_copy(
-  filtered_csv_path,
-  submission_path,
-  overwrite = TRUE
-)
+# ##### Copy submission file to repo.
+# submission_path <- fs::path(
+#   Sys.getenv("FLU_SUBMISSIONS_PATH", unset = "."),
+#   "model-output",
+#   "CMU-TimeSeries",
+#   sprintf("%s-CMU-TimeSeries.csv", cdc_reference_date)
+# )
+# fs::file_copy(
+#   filtered_csv_path,
+#   submission_path,
+#   overwrite = TRUE
+# )
 
-##### Validate the submission file.
-library(hubValidations)
-hubValidations::validate_submission(
-  hub_path = Sys.getenv("FLU_SUBMISSIONS_PATH", unset = "."),
-  file_path = fs::path(
-    "CMU-TimeSeries",
-    sprintf("%s-CMU-TimeSeries.csv", cdc_reference_date)
-  )
-)
+# ##### Validate the submission file.
+# library(hubValidations)
+# hubValidations::validate_submission(
+#   hub_path = Sys.getenv("FLU_SUBMISSIONS_PATH", unset = "."),
+#   file_path = fs::path(
+#     "CMU-TimeSeries",
+#     sprintf("%s-CMU-TimeSeries.csv", cdc_reference_date)
+#   )
+# )
