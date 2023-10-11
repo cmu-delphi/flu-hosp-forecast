@@ -137,6 +137,9 @@ def copy_to_repo():
 
     The repo path is specified in the env var FLU_FORECASTER_PATH.
     """
+    check_exists(FLU_PREDICTIONS_FILE)
+    if not FLU_SUBMISSION_PATH.exists():
+        os.makedirs(FLU_SUBMISSION_PATH)
     shutil.copy(FLU_PREDICTIONS_FILE, FLU_SUBMISSION_PATH)
 
 
@@ -153,7 +156,7 @@ def get_latest_commit_date(repo: git.Repo) -> datetime:
         if date_match := re.search(pattern, commit.message):
             return datetime.strptime(date_match.groups()[0], "%Y-%m-%d")
 
-    raise ValueError("No previous commits by CMU-TimeSeries found.")
+    return datetime(1970, 1, 1)
 
 
 def make_new_branch(repo: git.Repo, branch_name: str):
@@ -215,7 +218,7 @@ def submit():
     """
     flu_submissions_repo = git.Repo(os.environ["FLU_SUBMISSIONS_PATH"])
     assert flu_submissions_repo.remote(name="origin").exists()
-    assert flu_submissions_repo.active_branch.name == "master"
+    assert flu_submissions_repo.active_branch.name == "main"
 
     flu_submissions_repo.remote(name="origin").pull()
 
@@ -226,7 +229,7 @@ def submit():
     commit_to_repo()
     push_to_repo()
 
-    switch_to_branch(flu_submissions_repo, "master")
+    switch_to_branch(flu_submissions_repo, "main")
 
 
 def upload_file_to_slack(
