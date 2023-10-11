@@ -928,9 +928,14 @@
     },
     "epidatr": {
       "Package": "epidatr",
-      "Version": "1.0.0",
-      "Source": "Repository",
-      "Repository": "RSPM",
+      "Version": "1.1.0",
+      "Source": "GitHub",
+      "RemoteType": "github",
+      "RemoteHost": "api.github.com",
+      "RemoteUsername": "cmu-delphi",
+      "RemoteRepo": "epidatr",
+      "RemoteRef": "dev",
+      "RemoteSha": "c041a90306a395f562fcd96b1b5aaaaff8e47c5a",
       "Requirements": [
         "MMWRweek",
         "R",
@@ -947,7 +952,7 @@
         "tibble",
         "xml2"
       ],
-      "Hash": "b3b57adb7e6b8bf9ac135abcd200bfb4"
+      "Hash": "c289b35fd17c895f703b8d2a386500ae"
     },
     "epipredict": {
       "Package": "epipredict",
