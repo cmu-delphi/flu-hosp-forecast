@@ -1,18 +1,17 @@
-#### BEGIN copied/adapted content from cmu-delphi/hospitalization-forecaster
-#### production-scripts/plotting.R as of 2022-10-17
+library(epidatr)
 
 
 get_quantiles_df <- function(predictions_cards, intervals = c(.5, .9), ...) {
   predictions_cards <- predictions_cards %>%
     dplyr::select(
-      .data$geo_value, .data$quantile,
-      .data$value, .data$forecaster, .data$forecast_date,
+      .data$geo_value, .data$output_type_id,
+      .data$value, .data$forecaster, .data$reference_date,
       .data$target_end_date
     )
 
   lower_bounds <- predictions_cards %>%
-    select(.data$quantile) %>%
-    filter(.data$quantile < 0.5) %>%
+    select(.data$output_type_id) %>%
+    filter(.data$output_type_id < 0.5) %>%
     unique() %>%
     pull()
   quantiles_to_plot <- as.integer(sort(
@@ -20,18 +19,19 @@ get_quantiles_df <- function(predictions_cards, intervals = c(.5, .9), ...) {
   ))
 
   quantiles_df <- predictions_cards %>%
-    filter(as.integer(round(.data$quantile * 1000)) %in% c(quantiles_to_plot)) %>%
+    filter(as.integer(round(.data$output_type_id * 1000)) %in% c(quantiles_to_plot)) %>%
     mutate(
-      endpoint_type = if_else(.data$quantile < 0.5, "lower", "upper"),
-      alp = if_else(.data$endpoint_type == "lower",
-        format(2 * .data$quantile, digits = 3, nsmall = 3),
-        format(2 * (1 - .data$quantile), digits = 3, nsmall = 3)
+      endpoint_type = if_else(.data$output_type_id < 0.5, "lower", "upper"),
+      alp = if_else(
+        .data$endpoint_type == "lower",
+        format(2 * .data$output_type_id, digits = 3, nsmall = 3),
+        format(2 * (1 - .data$output_type_id), digits = 3, nsmall = 3)
       ),
       interval = forcats::fct_rev(
         paste0((1 - as.numeric(.data$alp)) * 100, "%")
       )
     ) %>%
-    select(-.data$quantile, -.data$alp) %>%
+    select(-.data$output_type_id, -.data$alp) %>%
     pivot_wider(names_from = "endpoint_type", values_from = "value")
 
   return(quantiles_df)
@@ -39,16 +39,16 @@ get_quantiles_df <- function(predictions_cards, intervals = c(.5, .9), ...) {
 
 get_points_df <- function(predictions_cards) {
   points_df <- predictions_cards %>%
-    filter(as.integer(round(.data$quantile * 1000)) == 500L |
-      is.na(.data$quantile))
-  if (any(is.na(points_df$quantile))) {
+    filter(as.integer(round(.data$output_type_id * 1000)) == 500L |
+      is.na(.data$output_type_id))
+  if (any(is.na(points_df$output_type_id))) {
     points_df <- points_df %>%
-      pivot_wider(names_from = "quantile", values_from = "value") %>%
+      pivot_wider(names_from = "output_type_id", values_from = "value") %>%
       mutate(value = if_else(!is.na(.data$`NA`), .data$`NA`, .data$`0.5`)) %>%
       select(-.data$`0.5`, -.data$`NA`)
   } else {
     points_df <- points_df %>%
-      select(-.data$quantile)
+      select(-.data$output_type_id)
   }
 
   return(points_df)
@@ -67,7 +67,7 @@ plot_quantiles <- function(g, quantiles_df) {
         mapping = aes(
           ymin = .data$lower,
           ymax = .data$upper,
-          group = interaction(.data$forecast_date, .data$forecaster)
+          group = interaction(.data$reference_date, .data$forecaster)
         ),
         alpha = alp[qq]
       )
@@ -81,17 +81,22 @@ plot_points <- function(g, points_df) {
     data = points_df,
     mapping = aes(
       y = .data$value,
-      group = interaction(.data$forecast_date, .data$forecaster)
+      group = interaction(.data$reference_date, .data$forecaster)
     )
   )
 
   return(g)
 }
 
-plot_state_forecasters <- function(predictions_cards, exclude_geos = c(), start_day = NULL, ncol = 5) {
+plot_state_quantile_forecasts <- function(
+    predictions_cards,
+    exclude_geos = c()) {
   if (nrow(predictions_cards) == 0) {
     return(NULL)
   }
+
+  predictions_cards <- predictions_cards %>%
+    filter(output_type_id == "quantile", geo_value != "us")
 
   td1 <- epidatr::pub_covidcast(
     "hhs",
@@ -99,7 +104,7 @@ plot_state_forecasters <- function(predictions_cards, exclude_geos = c(), start_
     "state",
     "day",
     "*",
-    epirange(start_day, 20300101)
+    epirange(20230101, 20300101)
   ) %>%
     filter(!geo_value %in% exclude_geos) %>%
     mutate(
@@ -113,7 +118,7 @@ plot_state_forecasters <- function(predictions_cards, exclude_geos = c(), start_
     "state",
     "day",
     "*",
-    epirange(start_day, 20300101)
+    epirange(20230101, 20300101)
   ) %>%
     filter(!geo_value %in% exclude_geos) %>%
     rename(target_end_date = time_value) %>%
@@ -148,16 +153,21 @@ plot_state_forecasters <- function(predictions_cards, exclude_geos = c(), start_
   g <- g +
     geom_line(mapping = aes(y = .data$value)) +
     geom_line(data = td2, mapping = aes(x = .data$target_end_date, y = .data$scaled_value)) +
-    facet_wrap(~ .data$geo_value, scales = "free_y", ncol = ncol, drop = TRUE) +
+    facet_wrap(~ .data$geo_value, scales = "free_y", ncol = 2, drop = TRUE) +
     theme(legend.position = "top", legend.text = element_text(size = 7))
 
   return(g)
 }
 
-plot_nation_forecasters <- function(predictions_cards, exclude_geos = c(), start_day = NULL, ncol = 5) {
+plot_nation_quantile_forecasts <- function(
+    predictions_cards,
+    exclude_geos = c()) {
   if (nrow(predictions_cards) == 0) {
     return(NULL)
   }
+
+  predictions_cards <- predictions_cards %>%
+    filter(output_type_id == "quantile", geo_value == "us")
 
   td1 <- epidatr::pub_covidcast(
     "hhs",
@@ -165,7 +175,7 @@ plot_nation_forecasters <- function(predictions_cards, exclude_geos = c(), start
     "state",
     "day",
     "*",
-    epirange(start_day, 20300101)
+    epirange(20230101, 20300101)
   ) %>%
     filter(!geo_value %in% exclude_geos) %>%
     mutate(
@@ -183,7 +193,7 @@ plot_nation_forecasters <- function(predictions_cards, exclude_geos = c(), start
     "state",
     "day",
     "*",
-    epirange(start_day, 20300101)
+    epirange(20230101, 20300101)
   ) %>%
     filter(!geo_value %in% exclude_geos) %>%
     rename(target_end_date = time_value) %>%
@@ -222,4 +232,80 @@ plot_nation_forecasters <- function(predictions_cards, exclude_geos = c(), start
   return(g)
 }
 
-#### END copied/adapted content
+plot_categorical_predictions <- function(
+    predictions_cards,
+    exclude_geos = c()) {
+  if (nrow(predictions_cards) == 0) {
+    return(NULL)
+  }
+
+  td1 <- epidatr::pub_covidcast(
+    "hhs",
+    "confirmed_admissions_influenza_1d_7dav",
+    "state",
+    "day",
+    "*",
+    epirange(20230101, 20300101)
+  ) %>%
+    filter(!geo_value %in% exclude_geos) %>%
+    mutate(
+      value = 7L * .data$value,
+      data_source = "hhs"
+    ) %>%
+    rename(target_end_date = time_value)
+  td2 <- epidatr::pub_covidcast(
+    "chng",
+    "smoothed_adj_outpatient_flu",
+    "state",
+    "day",
+    "*",
+    epirange(20230101, 20300101)
+  ) %>%
+    filter(!geo_value %in% exclude_geos) %>%
+    rename(target_end_date = time_value) %>%
+    mutate(
+      data_source = "chng"
+    )
+
+  td1.max <- td1 %>%
+    group_by(geo_value) %>%
+    summarize(max_value = max(value))
+  td2.max <- td2 %>%
+    group_by(geo_value) %>%
+    summarize(max_value = max(value))
+  td2.max <- td2.max %>%
+    left_join(td1.max, by = "geo_value", suffix = c(".2", ".1")) %>%
+    mutate(max_ratio = max_value.1 / max_value.2)
+  td2 <- td2 %>%
+    left_join(td2.max, by = "geo_value") %>%
+    mutate(scaled_value = value * max_ratio)
+  td1 <- td1 %>% mutate(forecaster = "hhs hosp truth")
+  td2 <- td2 %>% mutate(forecaster = "chng smoothed_adj_outpatient_flu current, scaled")
+
+  # Setup plot
+  g <- ggplot(
+    td1,
+    mapping = aes(x = .data$target_end_date, color = .data$forecaster, fill = .data$forecaster)
+  )
+
+  g <- g + geom_point(
+    data = predictions_cards %>%
+      filter(.data$output_type_id == "0.5"),
+    mapping = aes(
+      y = .data$value,
+      group = interaction(.data$reference_date, .data$forecaster)
+    )
+  )
+
+  quantiles_df <- get_quantiles_df(predictions_cards %>% filter(output_type == "quantile"))
+  g <- plot_quantiles(g, quantiles_df)
+
+  # Plot truth data by geo
+  g <- g +
+    geom_line(mapping = aes(y = .data$value)) +
+    geom_line(data = td2, mapping = aes(x = .data$target_end_date, y = .data$scaled_value)) +
+    facet_wrap(~ .data$geo_value, scales = "free_y", ncol = 2, drop = TRUE) +
+    theme(legend.position = "top", legend.text = element_text(size = 7))
+
+  return(g)
+}

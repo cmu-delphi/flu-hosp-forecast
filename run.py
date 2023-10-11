@@ -89,7 +89,7 @@ FLU_PREDICTIONS_NOTEBOOK = (
 if not os.environ.get("FLU_SUBMISSIONS_PATH"):
     check_and_set_var(
         "FLU_SUBMISSIONS_PATH",
-        "Please enter the path to 'Flusight-forecast-data' (e.g. /Users/username/Documents/Flusight-forecast-data): ",
+        "Please enter the path to 'FluSight-forecast-hub' (e.g. /Users/username/Documents/FluSight-forecast-hub): ",
     )
 FLU_SUBMISSION_DIR = (
     Path(os.environ.get("FLU_SUBMISSIONS_PATH", "")) / "model-output" / "CMU-TimeSeries"
@@ -107,31 +107,13 @@ def make_forecasts():
 
     Writes to data-forecasts/CMU-TimeSeries/.
     """
-    # Set this to "production", to use the production cache
-    os.environ["FLU_CACHE"] = os.environ.get("FLU_CACHE", "exploration")
     subprocess.run(["Rscript", "run.R"], check=True)
-
-
-@app.command("set-vars")
-def set_vars(force: bool = False):
-    """Set environment variables for the utility."""
-    print(
-        "Checking and setting environment variables... (press Enter to skip any variable)"
-    )
-    check_and_set_var(
-        "FLU_SUBMISSIONS_PATH",
-        "Please enter the path to 'Flusight-forecast-data' (e.g. /Users/username/Documents/Flusight-forecast-data): ",
-        force=force,
-    )
-    check_and_set_var(
-        "SLACK_BOT_TOKEN", "Please enter your Slack bot token: ", force=force
-    )
 
 
 def copy_to_repo():
     """Copy predictions to the submission repo.
 
-    The repo path is specified in the env var FLU_FORECASTER_PATH.
+    The repo path is specified in the env var FLU_SUBMISSIONS_PATH.
     """
     shutil.copy(FLU_PREDICTIONS_FILE, FLU_SUBMISSION_DIR)
 
@@ -167,7 +149,7 @@ def switch_to_branch(repo: git.Repo, branch_name: str):
 def commit_to_repo():
     """Commit to submission repo.
 
-    The repo path is specified in the env var FLU_FORECASTER_PATH.
+    The repo path is specified in the env var FLU_SUBMISSIONS_PATH.
 
     Can't use git.index because we're using a sparse index. So we use the CLI
     wrapper in git instead.
@@ -192,7 +174,7 @@ def commit_to_repo():
 def push_to_repo():
     """Push to the submission remote.
 
-    The repo path is specified in the env var FLU_FORECASTER_PATH.
+    The repo path is specified in the env var FLU_SUBMISSIONS_PATH.
     """
     flu_submissions_repo = git.Repo(os.environ["FLU_SUBMISSIONS_PATH"])
     assert flu_submissions_repo.remote(name="origin").exists()
@@ -207,7 +189,7 @@ def push_to_repo():
 def submit():
     """Copy, commit, and push to the submission repo.
 
-    The repo path is specified in the env var FLU_FORECASTER_PATH.
+    The repo path is specified in the env var FLU_SUBMISSIONS_PATH.
     """
     flu_submissions_repo = git.Repo(os.environ["FLU_SUBMISSIONS_PATH"])
     assert flu_submissions_repo.remote(name="origin").exists()
