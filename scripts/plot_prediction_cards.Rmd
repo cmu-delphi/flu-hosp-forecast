@@ -30,7 +30,8 @@ flu_forecasts <- read_csv(params$predictions_file, show_col_types = FALSE) %>%
   ) %>%
   filter(output_type != "pmf") %>%
   mutate(
-    quantile = parse_number(quantile)
+    quantile = parse_number(quantile),
+    geo_value = as.factor(geo_value),
   )
 ```
 
@@ -44,7 +45,7 @@ flu_forecasts <- read_csv(params$predictions_file, show_col_types = FALSE) %>%
 plot_state_forecasters(
   flu_forecasts %>% filter(geo_value != "us"),
   exclude_geos = params$exclude_geos,
-  start_day = "2023-01-01",
+  start_day = "2022-10-01",
   ncol = 2
 ) %>%
   suppressMessages() %>%
@@ -57,7 +58,7 @@ plot_state_forecasters(
 plot_nation_forecasters(
   flu_forecasts %>% filter(geo_value == "us"),
   exclude_geos = params$exclude_geos,
-  start_day = "2023-01-01"
+  start_day = "2022-10-01"
 ) %>%
   suppressMessages() %>%
   suppressWarnings() %>%

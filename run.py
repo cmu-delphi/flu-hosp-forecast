@@ -274,8 +274,10 @@ def post_notebook_to_slack(test_mode: bool = False):
     )
 
     hyperlinks = " ".join(
-        get_hyperlink_text(notebook_link, "Notebook"),
-        get_hyperlink_text(csv_link, "CSV"),
+        [
+            get_hyperlink_text(notebook_link, "Notebook"),
+            get_hyperlink_text(csv_link, "CSV"),
+        ]
     )
     text = f"Flu: {hyperlinks} for {FORECAST_DUE_DATE:%Y-%m-%d} {ROLE_TAG_STRING}"
 

@@ -93,6 +93,10 @@ plot_state_forecasters <- function(predictions_cards, exclude_geos = c(), start_
     return(NULL)
   }
 
+  predictions_cards %<>% filter(
+    !geo_value %in% exclude_geos
+  )
+
   td1 <- epidatr::pub_covidcast(
     "hhs",
     "confirmed_admissions_influenza_1d_7dav",
@@ -101,7 +105,6 @@ plot_state_forecasters <- function(predictions_cards, exclude_geos = c(), start_
     "*",
     epirange(start_day, 20300101)
   ) %>%
-    filter(!geo_value %in% exclude_geos) %>%
     mutate(
       value = 7L * .data$value,
       data_source = "hhs"
@@ -115,7 +118,6 @@ plot_state_forecasters <- function(predictions_cards, exclude_geos = c(), start_
     "*",
     epirange(start_day, 20300101)
   ) %>%
-    filter(!geo_value %in% exclude_geos) %>%
     rename(target_end_date = time_value) %>%
     mutate(
       data_source = "chng"
@@ -158,6 +160,10 @@ plot_nation_forecasters <- function(predictions_cards, exclude_geos = c(), start
   if (nrow(predictions_cards) == 0) {
     return(NULL)
   }
+
+  predictions_cards %<>% filter(
+    !geo_value %in% exclude_geos
+  )
 
   td1 <- epidatr::pub_covidcast(
     "hhs",
