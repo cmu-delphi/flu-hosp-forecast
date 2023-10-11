@@ -29,6 +29,7 @@
 #  - cache files in cache/
 #
 
+library(dotenv)
 library(dplyr)
 library(magrittr)
 
@@ -40,8 +41,8 @@ source(here::here("R", "naive_direction_forecaster.R"))
 forecast_generation_date <- as.Date(Sys.getenv(
   "FORECAST_GENERATION_DATE",
   unset = Sys.Date()
+  # unset = as.Date("2022-12-01")
 ))
-# forecast_generation_date <- as.Date("2022-12-01")
 forecast_due_date <- as.Date(Sys.getenv(
   "FORECAST_DUE_DATE",
   unset = get_next_weekday(forecast_generation_date, 4)
@@ -150,5 +151,28 @@ rmarkdown::render(
   params = list(
     exclude_geos = exclude_geos,
     predictions_file = unfiltered_csv_path
+  )
+)
+
+##### Copy submission file to repo.
+submission_path <- fs::path(
+  Sys.getenv("FLU_SUBMISSIONS_PATH", unset = "."),
+  "model-output",
+  "CMU-TimeSeries",
+  sprintf("%s-CMU-TimeSeries.csv", cdc_reference_date)
+)
+fs::file_copy(
+  filtered_csv_path,
+  submission_path,
+  overwrite = TRUE
+)
+
+##### Validate the submission file.
+library(hubValidations)
+hubValidations::validate_submission(
+  hub_path = Sys.getenv("FLU_SUBMISSIONS_PATH", unset = "."),
+  file_path = fs::path(
+    "CMU-TimeSeries",
+    sprintf("%s-CMU-TimeSeries.csv", cdc_reference_date)
   )
 )

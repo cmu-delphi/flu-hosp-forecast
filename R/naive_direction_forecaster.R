@@ -1,8 +1,8 @@
 # Naive direction forecaster.
 #
-# This forecaster tries to convert predictions for the FluSight quantile targets
-# into predictions for the categorical trends targets in a revision-unaware way.
-# The directions are obtained as follows:
+# This forecaster converts predictions for the FluSight quantile targets into
+# predictions for the categorical trends targets in a revision-unaware way. The
+# directions are obtained as follows:
 #
 #  - For each state, we compute the 7-day sum of the most recent Sat-Fri run of
 #    data available and call that the reference count.

@@ -252,6 +252,19 @@
       ],
       "Hash": "2042cd9759cc89a453c4aefef0ce9aae"
     },
+    "V8": {
+      "Package": "V8",
+      "Version": "4.4.0",
+      "Source": "Repository",
+      "Repository": "RSPM",
+      "Requirements": [
+        "Rcpp",
+        "curl",
+        "jsonlite",
+        "utils"
+      ],
+      "Hash": "df924bedbdcaaf3b1d3ac7ed94f4d001"
+    },
     "anytime": {
       "Package": "anytime",
       "Version": "0.3.9",
@@ -263,6 +276,28 @@
         "Rcpp"
       ],
       "Hash": "74a64813f17b492da9c6afda6b128e3d"
+    },
+    "arrow": {
+      "Package": "arrow",
+      "Version": "13.0.0.1",
+      "Source": "Repository",
+      "Repository": "RSPM",
+      "Requirements": [
+        "R",
+        "R6",
+        "assertthat",
+        "bit64",
+        "cpp11",
+        "glue",
+        "methods",
+        "purrr",
+        "rlang",
+        "stats",
+        "tidyselect",
+        "utils",
+        "vctrs"
+      ],
+      "Hash": "5f5124b727a451be32d23dcd2c41ebe8"
     },
     "askpass": {
       "Package": "askpass",
@@ -359,6 +394,16 @@
       ],
       "Hash": "dc9cfc2545fa6405414ad64161c98f61"
     },
+    "bigD": {
+      "Package": "bigD",
+      "Version": "0.2.0",
+      "Source": "Repository",
+      "Repository": "RSPM",
+      "Requirements": [
+        "R"
+      ],
+      "Hash": "93637e906f3fe962413912c956eb44db"
+    },
     "bit": {
       "Package": "bit",
       "Version": "4.0.5",
@@ -382,6 +427,13 @@
         "utils"
       ],
       "Hash": "9fe98599ca456d6552421db0d6772d8f"
+    },
+    "bitops": {
+      "Package": "bitops",
+      "Version": "1.0-7",
+      "Source": "Repository",
+      "Repository": "RSPM",
+      "Hash": "b7d8d8ee39869c18d8846a184dd8a1af"
     },
     "blob": {
       "Package": "blob",
@@ -594,6 +646,16 @@
       "Source": "Repository",
       "Repository": "RSPM",
       "Hash": "d691c61bff84bd63c383874d2d0c3307"
+    },
+    "config": {
+      "Package": "config",
+      "Version": "0.3.2",
+      "Source": "Repository",
+      "Repository": "RSPM",
+      "Requirements": [
+        "yaml"
+      ],
+      "Hash": "8b7222e9d9eb5178eea545c0c4d33fc2"
     },
     "conflicted": {
       "Package": "conflicted",
@@ -856,6 +918,13 @@
         "utils"
       ],
       "Hash": "451e5edf411987991ab6a5410c45011f"
+    },
+    "dotenv": {
+      "Package": "dotenv",
+      "Version": "1.0.3",
+      "Source": "Repository",
+      "Repository": "RSPM",
+      "Hash": "7e1213a65b6190437c644a14ec814ef3"
     },
     "dplyr": {
       "Package": "dplyr",
@@ -1481,6 +1550,36 @@
       ],
       "Hash": "7d7f283939f563670a697165b2cf5560"
     },
+    "gt": {
+      "Package": "gt",
+      "Version": "0.10.0",
+      "Source": "Repository",
+      "Repository": "RSPM",
+      "Requirements": [
+        "R",
+        "base64enc",
+        "bigD",
+        "bitops",
+        "cli",
+        "commonmark",
+        "dplyr",
+        "fs",
+        "glue",
+        "htmltools",
+        "htmlwidgets",
+        "juicyjuice",
+        "magrittr",
+        "markdown",
+        "reactable",
+        "rlang",
+        "sass",
+        "scales",
+        "tibble",
+        "tidyselect",
+        "xml2"
+      ],
+      "Hash": "21737c74811cccac01b5097bcb0f8b4c"
+    },
     "gtable": {
       "Package": "gtable",
       "Version": "0.3.4",
@@ -1648,6 +1747,72 @@
       ],
       "Hash": "193bb297368afbbb42dc85784a46b36e"
     },
+    "hubUtils": {
+      "Package": "hubUtils",
+      "Version": "0.0.0.9014",
+      "Source": "GitHub",
+      "RemoteType": "github",
+      "RemoteHost": "api.github.com",
+      "RemoteRepo": "hubUtils",
+      "RemoteUsername": "Infectious-Disease-Modeling-Hubs",
+      "RemotePkgRef": "Infectious-Disease-Modeling-Hubs/hubUtils",
+      "RemoteRef": "HEAD",
+      "RemoteSha": "8f4016821ae516328438baf292452c37f670e0e7",
+      "Requirements": [
+        "R",
+        "arrow",
+        "checkmate",
+        "cli",
+        "fs",
+        "glue",
+        "gt",
+        "jsonlite",
+        "jsonvalidate",
+        "lifecycle",
+        "magrittr",
+        "memoise",
+        "purrr",
+        "rlang",
+        "stringr",
+        "tibble"
+      ],
+      "Hash": "12096ef3f558d2cf7bbdf3d5ab047526"
+    },
+    "hubValidations": {
+      "Package": "hubValidations",
+      "Version": "0.0.0.9004",
+      "Source": "GitHub",
+      "Remotes": "Infectious-Disease-Modeling-Hubs/hubUtils, assignUser/octolog",
+      "RemoteType": "github",
+      "RemoteHost": "api.github.com",
+      "RemoteRepo": "hubValidations",
+      "RemoteUsername": "Infectious-Disease-Modeling-Hubs",
+      "RemotePkgRef": "Infectious-Disease-Modeling-Hubs/hubValidations",
+      "RemoteRef": "HEAD",
+      "RemoteSha": "096d82647a90e126f8d69a2a904ca73008d27ccb",
+      "Requirements": [
+        "R",
+        "arrow",
+        "checkmate",
+        "cli",
+        "config",
+        "dplyr",
+        "fs",
+        "gh",
+        "hubUtils",
+        "jsonlite",
+        "jsonvalidate",
+        "lubridate",
+        "magrittr",
+        "octolog",
+        "purrr",
+        "rlang",
+        "stringr",
+        "tibble",
+        "yaml"
+      ],
+      "Hash": "2753f80d953801842d593b764cad2e4f"
+    },
     "ids": {
       "Package": "ids",
       "Version": "1.0.1",
@@ -1745,6 +1910,26 @@
         "methods"
       ],
       "Hash": "266a20443ca13c65688b2116d5220f76"
+    },
+    "jsonvalidate": {
+      "Package": "jsonvalidate",
+      "Version": "1.3.2",
+      "Source": "Repository",
+      "Repository": "RSPM",
+      "Requirements": [
+        "V8"
+      ],
+      "Hash": "cdc2843ef7f44f157198bb99aea7552d"
+    },
+    "juicyjuice": {
+      "Package": "juicyjuice",
+      "Version": "0.1.0",
+      "Source": "Repository",
+      "Repository": "RSPM",
+      "Requirements": [
+        "V8"
+      ],
+      "Hash": "3bcd11943da509341838da9399e18bce"
     },
     "knitr": {
       "Package": "knitr",
@@ -1920,6 +2105,19 @@
       ],
       "Hash": "7ce2733a9826b3aeb1775d56fd305472"
     },
+    "markdown": {
+      "Package": "markdown",
+      "Version": "1.9",
+      "Source": "Repository",
+      "Repository": "RSPM",
+      "Requirements": [
+        "R",
+        "commonmark",
+        "utils",
+        "xfun"
+      ],
+      "Hash": "4dea09e610da59f847c041d887b4dcfc"
+    },
     "memoise": {
       "Package": "memoise",
       "Version": "2.0.1",
@@ -2035,6 +2233,26 @@
         "R"
       ],
       "Hash": "df58958f293b166e4ab885ebcad90e02"
+    },
+    "octolog": {
+      "Package": "octolog",
+      "Version": "0.1.1.9000",
+      "Source": "GitHub",
+      "RemoteType": "github",
+      "RemoteHost": "api.github.com",
+      "RemoteRepo": "octolog",
+      "RemoteUsername": "assignUser",
+      "RemotePkgRef": "assignUser/octolog",
+      "RemoteRef": "HEAD",
+      "RemoteSha": "f17ff3a6aa549ffc37767060aca25984a40cd08d",
+      "Requirements": [
+        "cli",
+        "glue",
+        "rlang",
+        "utils",
+        "withr"
+      ],
+      "Hash": "9a72a96506cd1c875b1fe488ebb87ba9"
     },
     "openssl": {
       "Package": "openssl",
@@ -2411,6 +2629,31 @@
         "R"
       ],
       "Hash": "5e3c5dc0b071b21fa128676560dbe94d"
+    },
+    "reactR": {
+      "Package": "reactR",
+      "Version": "0.4.4",
+      "Source": "Repository",
+      "Repository": "RSPM",
+      "Requirements": [
+        "htmltools"
+      ],
+      "Hash": "75389c8091eb14ee21c6bc87a88b3809"
+    },
+    "reactable": {
+      "Package": "reactable",
+      "Version": "0.4.4",
+      "Source": "Repository",
+      "Repository": "RSPM",
+      "Requirements": [
+        "R",
+        "digest",
+        "htmltools",
+        "htmlwidgets",
+        "jsonlite",
+        "reactR"
+      ],
+      "Hash": "6069eb2a6597963eae0605c1875ff14c"
     },
     "readr": {
       "Package": "readr",

@@ -91,7 +91,7 @@ if not os.environ.get("FLU_SUBMISSIONS_PATH"):
         "FLU_SUBMISSIONS_PATH",
         "Please enter the path to 'Flusight-forecast-data' (e.g. /Users/username/Documents/Flusight-forecast-data): ",
     )
-FLU_SUBMISSION_DIR = (
+FLU_SUBMISSION_PATH = (
     Path(os.environ.get("FLU_SUBMISSIONS_PATH", "")) / "model-output" / "CMU-TimeSeries"
 )
 if not os.environ.get("SLACK_BOT_TOKEN"):
@@ -137,7 +137,7 @@ def copy_to_repo():
 
     The repo path is specified in the env var FLU_FORECASTER_PATH.
     """
-    shutil.copy(FLU_PREDICTIONS_FILE, FLU_SUBMISSION_DIR)
+    shutil.copy(FLU_PREDICTIONS_FILE, FLU_SUBMISSION_PATH)
 
 
 def get_latest_commit_date(repo: git.Repo) -> datetime:
@@ -182,7 +182,7 @@ def commit_to_repo():
     latest_commit_date = get_latest_commit_date(flu_submissions_repo)
     if latest_commit_date < REFERENCE_DATE:
         flu_submissions_repo.git.add(
-            str(FLU_SUBMISSION_DIR / f"{REFERENCE_DATE:%Y-%m-%d}-CMU-TimeSeries.csv")
+            str(FLU_SUBMISSION_PATH / f"{REFERENCE_DATE:%Y-%m-%d}-CMU-TimeSeries.csv")
         )
         flu_submissions_repo.git.commit(
             "-m", f"[CMU-TimeSeries] Add {REFERENCE_DATE:%Y-%m-%d} predictions"
