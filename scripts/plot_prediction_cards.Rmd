@@ -20,7 +20,6 @@ library(tidyverse)
 library(zookeeper)
 
 source(here::here("R", "plotting.R"))
-epidatr::set_cache(here::here("cache", "epidatr"))
 
 
 flu_forecasts <- read_csv(params$predictions_file, show_col_types = FALSE) %>%

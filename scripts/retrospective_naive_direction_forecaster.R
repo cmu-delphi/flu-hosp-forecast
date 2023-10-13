@@ -39,7 +39,6 @@ source(here::here("R", "approx-cdf.R"))
 source(here::here("R", "utils.R"))
 
 
-epidatr::set_cache(here::here("cache", "epidatr"), confirm = FALSE)
 # These are the dates for which we will produce retrospective forecasts.
 retrospective_forecast_dates <- seq(as.Date("2022-10-17"), as.Date("2022-12-19"), by = "week")
 incidence_rate <- 100000

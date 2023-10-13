@@ -31,6 +31,7 @@
 
 library(dotenv)
 library(dplyr)
+library(epidatr)
 library(magrittr)
 library(hubValidations)
 
@@ -67,9 +68,8 @@ if (!dir.exists(output_dir)) {
 }
 
 ##### Cache setup.
-epidatr::set_cache(here::here("cache", "epidatr"), confirm = FALSE)
 if (as.logical(Sys.getenv("FLU_HOSP_CLEAR_CACHE", unset = FALSE))) {
-  epidatr::clear_cache(cache_dir = here::here("cache", "epidatr"), confirm = FALSE)
+  epidatr::clear_cache(confirm = FALSE)
   # Clear evalcast cache.
   if (dir.exists(here::here("cache", "evalcast"))) {
     fs::dir_delete(here::here("cache", "evalcast"))

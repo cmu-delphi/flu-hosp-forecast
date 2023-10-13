@@ -11,7 +11,6 @@ source(here::here("R", "quantgen.R"))
 source(here::here("R", "ensemble.R"))
 
 
-epidatr::set_cache(here::here("cache", "epidatr"), confirm = FALSE)
 base_offline_signal_dir <- here::here("cache", "evalcast")
 forecast_cache_dir <- here::here("cache", "forecasters")
 n_cores <- parallel::detectCores() - 1L
