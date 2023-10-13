@@ -68,15 +68,15 @@ if (!dir.exists(output_dir)) {
 
 ##### Cache setup.
 epidatr::set_cache(here::here("cache", "epidatr"), confirm = FALSE)
-if (Sys.getenv("FLU_HOSP_CLEAR_CACHE", unset = FALSE)) {
-  epidatr::clear_cache(here::here("cache", "epidatr"), confirm = FALSE)
+if (as.logical(Sys.getenv("FLU_HOSP_CLEAR_CACHE", unset = FALSE))) {
+  epidatr::clear_cache(cache_dir = here::here("cache", "epidatr"), confirm = FALSE)
   # Clear evalcast cache.
   if (dir.exists(here::here("cache", "evalcast"))) {
     fs::dir_delete(here::here("cache", "evalcast"))
   }
   # Clear forecaster cache.
-  if (file.exists(here::here("cache", "forecaster", "ens1", sprintf("%s.RDS", cdc_reference_date - 3L)))) {
-    fs::file_delete(here::here("cache", "forecaster", "ens1", sprintf("%s.RDS", cdc_reference_date - 3L)))
+  if (file.exists(here::here("cache", "forecaster", "ens1", sprintf("%s.RDS", forecast_due_date)))) {
+    fs::file_delete(here::here("cache", "forecaster", "ens1", sprintf("%s.RDS", forecast_due_date)))
   }
 }
 
