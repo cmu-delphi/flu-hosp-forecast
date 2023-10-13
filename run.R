@@ -69,7 +69,10 @@ if (!dir.exists(output_dir)) {
 
 ##### Cache setup.
 if (as.logical(Sys.getenv("FLU_HOSP_CLEAR_CACHE", unset = FALSE))) {
-  epidatr::clear_cache(confirm = FALSE)
+  # Clear epidatr cache.
+  if (!is.null(epidatr:::cache_environ$epidatr_cache)) {
+    epidatr::clear_cache(confirm = FALSE)
+  }
   # Clear evalcast cache.
   if (dir.exists(here::here("cache", "evalcast"))) {
     fs::dir_delete(here::here("cache", "evalcast"))
