@@ -222,14 +222,14 @@ def submit():
 
     flu_submissions_repo.remote(name="origin").pull()
 
-    make_new_branch(flu_submissions_repo, f"forecast-{REFERENCE_DATE:%Y-%m-%d}")
-    switch_to_branch(flu_submissions_repo, f"forecast-{REFERENCE_DATE:%Y-%m-%d}")
+    # make_new_branch(flu_submissions_repo, f"forecast-{REFERENCE_DATE:%Y-%m-%d}")
+    # switch_to_branch(flu_submissions_repo, f"forecast-{REFERENCE_DATE:%Y-%m-%d}")
 
     copy_to_repo()
     commit_to_repo()
     push_to_repo()
 
-    switch_to_branch(flu_submissions_repo, "main")
+    # switch_to_branch(flu_submissions_repo, "main")
 
 
 def upload_file_to_slack(
