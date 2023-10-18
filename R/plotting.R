@@ -173,7 +173,6 @@ plot_nation_forecasters <- function(predictions_cards, exclude_geos = c(), start
     "*",
     epirange(start_day, 20300101)
   ) %>%
-    filter(!geo_value %in% exclude_geos) %>%
     mutate(
       value = 7L * .data$value,
       data_source = "hhs"
