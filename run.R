@@ -8,9 +8,9 @@
 # effective as of date for requesting API data). The CDC defines the reference
 # date to be the Saturday after the due date; this refers to unshifted data from
 # "previous day hospital admissions" data provided by NHSN, which Delphi has
-# already shifted. Therefore Delphi and CDC reference dates are off by one. The
-# horizons are the number of weeks ahead to forecast, relative to the reference
-# date.
+# already shifted in our API. Therefore Delphi and CDC reference dates are off
+# by one. The horizons are the number of weeks ahead to forecast, relative to
+# the reference date.
 #
 # To exclude a state from the forecast, add its two-letter state code to the
 # exclude_geos vector below. "as", "gu", "mp", and "vi" are excluded by default

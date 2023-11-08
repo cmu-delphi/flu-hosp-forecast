@@ -69,10 +69,10 @@ get_direction_predictions <- function(
   )
 
   # By the cadence of HHS data, we expect to have "official"/non-"preliminary"
-  # versions of data up to Friday 12 days back from the forecast due date. We
+  # versions of data up to Friday 4 days back from the forecast due date. We
   # get the latest Sat-Fri sum of the "official" data available.
   reference_7d_counts <- short_snapshot %>%
-    filter(time_value <= forecast_due_date - 12L) %>%
+    filter(time_value <= forecast_due_date - 4L) %>%
     group_by(geo_value) %>%
     complete(time_value = full_seq(time_value, 1L)) %>%
     slice_max(time_value, n = 7L) %>%
@@ -95,6 +95,7 @@ get_direction_predictions <- function(
   )
 
   direction_predictions <- quantile_predictions %>%
+    filter(horizon != -1) %>%
     group_by(
       forecaster,
       data_source,
@@ -120,19 +121,21 @@ get_direction_predictions <- function(
       value = {
         stopifnot(length(forecast_acdf) == 1L)
         if (horizon == -1) {
+        } else if (horizon == 0) {
           large_thresh <- increase_count_2_thresh
           stable_thresh <- increase_count_1_thresh
-        } else if (horizon == 0) {
+        } else if (horizon == 1) {
           large_thresh <- increase_count_3_thresh
           stable_thresh <- increase_count_1_thresh
-        } else if (horizon == 1) {
+        } else if (horizon == 2) {
           large_thresh <- increase_count_4_thresh
           stable_thresh <- increase_count_2_thresh
-        } else if (horizon == 2 || horizon == 3) {
+        }
+        else if (horizon == 3) {
           large_thresh <- increase_count_5_thresh
           stable_thresh <- increase_count_2p5_thresh
         } else {
-          stop("horizon must be in -1:3")
+          stop("horizon must be in 0:3")
         }
         p_large_dec <- p_le(forecast_acdf[[1L]], reference_7dcount - large_thresh)
         p_large_or_nonlarge_dec <- p_le(forecast_acdf[[1L]], reference_7dcount - stable_thresh)
