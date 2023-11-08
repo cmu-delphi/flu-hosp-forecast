@@ -56,6 +56,7 @@ exclude_geos <- tolower(c(
   c("as", "gu", "mp", "vi"),
   c()
 ))
+enforced_latency <- 4L
 
 if (as.POSIXlt(forecast_due_date)$wday != 3L) {
   cli::cli_alert_warning("forecast_due_date is expected to be a Wednesday, but it's not")
@@ -87,14 +88,16 @@ if (as.logical(Sys.getenv("FLU_HOSP_CLEAR_CACHE", unset = FALSE))) {
 quantile_predictions <- get_quantile_predictions(
   forecast_due_date,
   delphi_reference_date,
-  horizons
+  horizons,
+  enforced_latency
 )
 
 ##### Make direction forecasts.
 direction_predictions <- get_direction_predictions(
   forecast_due_date,
   delphi_reference_date,
-  quantile_predictions
+  quantile_predictions,
+  enforced_latency
 )
 
 ##### Combine and write the submissions file.

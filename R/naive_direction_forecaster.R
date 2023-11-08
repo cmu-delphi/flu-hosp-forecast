@@ -40,7 +40,8 @@ source(here::here("R", "utils.R"))
 get_direction_predictions <- function(
     forecast_due_date,
     reference_date,
-    quantile_predictions) {
+    quantile_predictions,
+    enforced_latency) {
   augmented_location_data <- get_flusight_location_data()
   state_pop <- get_state_data()
 
@@ -69,10 +70,11 @@ get_direction_predictions <- function(
   )
 
   # By the cadence of HHS data, we expect to have "official"/non-"preliminary"
-  # versions of data up to Friday 4 days back from the forecast due date. We
-  # get the latest Sat-Fri sum of the "official" data available.
+  # versions of data up to Friday 4 days back from the forecast due date (this
+  # is in enforced_latency). We get the latest Sat-Fri sum of the "official"
+  # data available.
   reference_7d_counts <- short_snapshot %>%
-    filter(time_value <= forecast_due_date - 4L) %>%
+    filter(time_value <= forecast_due_date - enforced_latency) %>%
     group_by(geo_value) %>%
     complete(time_value = full_seq(time_value, 1L)) %>%
     slice_max(time_value, n = 7L) %>%
@@ -120,8 +122,7 @@ get_direction_predictions <- function(
       output_type_id = c("large_decrease", "decrease", "stable", "increase", "large_increase"),
       value = {
         stopifnot(length(forecast_acdf) == 1L)
-        if (horizon == -1) {
-        } else if (horizon == 0) {
+        if (horizon == 0) {
           large_thresh <- increase_count_2_thresh
           stable_thresh <- increase_count_1_thresh
         } else if (horizon == 1) {

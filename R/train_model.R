@@ -12,7 +12,9 @@ source(here::here("R", "utils.R"))
 get_quantile_predictions <- function(
     forecast_due_date,
     reference_date,
-    horizons) {
+    horizons,
+    enforced_latency
+    ) {
   geo_type <- "state"
   response_data_source <- "hhs"
   response_signal <- "confirmed_admissions_influenza_1d_prop_7dav"
@@ -63,7 +65,7 @@ get_quantile_predictions <- function(
     forecaster = quantgen_forecaster %>%
       make_forecaster_account_for_response_latency() %>%
       make_latency_enforced_forecaster(
-        min_latency_to_enforce = 4
+        min_latency_to_enforce = enforced_latency
       ) %>%
       make_forecaster_with_prespecified_args(
         signals = signals_ar,
@@ -87,7 +89,7 @@ get_quantile_predictions <- function(
     forecaster = quantgen_forecaster %>%
       make_forecaster_account_for_response_latency() %>%
       make_latency_enforced_forecaster(
-        min_latency_to_enforce = 4
+        min_latency_to_enforce = enforced_latency
       ) %>%
       make_forecaster_with_prespecified_args(
         signals = signals_ar,
