@@ -173,7 +173,6 @@ plot_nation_forecasters <- function(predictions_cards, exclude_geos = c(), start
     "*",
     epirange(start_day, 20300101)
   ) %>%
-    filter(!geo_value %in% exclude_geos) %>%
     mutate(
       value = 7L * .data$value,
       data_source = "hhs"
@@ -186,20 +185,15 @@ plot_nation_forecasters <- function(predictions_cards, exclude_geos = c(), start
   td2 <- epidatr::pub_covidcast(
     "chng",
     "smoothed_adj_outpatient_flu",
-    "state",
+    "nation",
     "day",
     "*",
     epirange(start_day, 20300101)
   ) %>%
-    filter(!geo_value %in% exclude_geos) %>%
-    rename(target_end_date = time_value) %>%
-    mutate(
-      data_source = "chng"
-    ) %>%
-    group_by(
-      target_end_date
-    ) %>%
-    summarize(value = sum(value))
+    select(
+      target_end_date = time_value,
+      value
+    )
   td1.max <- td1 %>%
     summarize(max_value = max(value)) %>%
     pull(max_value)
