@@ -51,12 +51,12 @@ forecast_due_date <- as.Date(Sys.getenv(
 ))
 cdc_reference_date <- get_next_weekday(forecast_due_date, 0)
 delphi_reference_date <- cdc_reference_date - 1L
-horizons <- -1:3
+horizons <- 0:3 # no -1 as it may break the forecaster
 exclude_geos <- tolower(c(
   c("as", "gu", "mp", "vi"),
   c()
 ))
-enforced_latency <- 4L
+enforced_latency <- 5L # Friday of preceding week, calculated from `forecast_due_date` (expected to be a Wednesday)
 
 if (as.POSIXlt(forecast_due_date)$wday != 3L) {
   cli::cli_alert_warning("forecast_due_date is expected to be a Wednesday, but it's not")
