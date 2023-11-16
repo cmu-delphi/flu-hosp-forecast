@@ -88,7 +88,7 @@ plot_points <- function(g, points_df) {
   return(g)
 }
 
-plot_state_forecasters <- function(predictions_cards, exclude_geos = c(), start_day = NULL, ncol = 5) {
+plot_state_forecasters <- function(predictions_cards, exclude_geos = c(), start_day = NULL, ncol = 5, data_7dav_override = NULL) {
   if (nrow(predictions_cards) == 0) {
     return(NULL)
   }
@@ -97,14 +97,20 @@ plot_state_forecasters <- function(predictions_cards, exclude_geos = c(), start_
     !geo_value %in% exclude_geos
   )
 
-  td1 <- epidatr::pub_covidcast(
-    "hhs",
-    "confirmed_admissions_influenza_1d_7dav",
-    "state",
-    "day",
-    "*",
-    epirange(start_day, 20300101)
-  ) %>%
+  if (is.null(data_7dav_override)) {
+    td1 <- epidatr::pub_covidcast(
+                      "hhs",
+                      "confirmed_admissions_influenza_1d_7dav",
+                      "state",
+                      "day",
+                      "*",
+                      epirange(start_day, 20300101)
+                    )
+  } else {
+    td1 <- data_7dav_override %>%
+      filter(geo_value != "us", as.Date(start_day) <= time_value)
+  }
+  td1 <- td1 %>%
     mutate(
       value = 7L * .data$value,
       data_source = "hhs"
@@ -156,7 +162,7 @@ plot_state_forecasters <- function(predictions_cards, exclude_geos = c(), start_
   return(g)
 }
 
-plot_nation_forecasters <- function(predictions_cards, exclude_geos = c(), start_day = NULL, ncol = 5) {
+plot_nation_forecasters <- function(predictions_cards, exclude_geos = c(), start_day = NULL, ncol = 5, data_7dav_override = NULL) {
   if (nrow(predictions_cards) == 0) {
     return(NULL)
   }
@@ -165,23 +171,33 @@ plot_nation_forecasters <- function(predictions_cards, exclude_geos = c(), start
     !geo_value %in% exclude_geos
   )
 
-  td1 <- epidatr::pub_covidcast(
-    "hhs",
-    "confirmed_admissions_influenza_1d_7dav",
-    "state",
-    "day",
-    "*",
-    epirange(start_day, 20300101)
-  ) %>%
-    mutate(
-      value = 7L * .data$value,
-      data_source = "hhs"
-    ) %>%
-    rename(target_end_date = time_value) %>%
-    group_by(
-      target_end_date
-    ) %>%
-    summarize(value = sum(value))
+  if (is.null(data_7dav_override)) {
+    td1 <- epidatr::pub_covidcast(
+                      "hhs",
+                      "confirmed_admissions_influenza_1d_7dav",
+                      "state",
+                      "day",
+                      "*",
+                      epirange(start_day, 20300101)
+                    ) %>%
+      mutate(
+        value = 7L * .data$value,
+        data_source = "hhs"
+      ) %>%
+      rename(target_end_date = time_value) %>%
+      group_by(
+        target_end_date
+      ) %>%
+      summarize(value = sum(value))
+  } else {
+    td1 <- data_7dav_override %>%
+      filter(geo_value == "us", as.Date(start_day) <= time_value) %>%
+      mutate(
+        value = 7L * .data$value,
+        data_source = "hhs"
+      ) %>%
+      rename(target_end_date = time_value)
+  }
   td2 <- epidatr::pub_covidcast(
     "chng",
     "smoothed_adj_outpatient_flu",

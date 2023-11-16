@@ -21,6 +21,50 @@ library(zookeeper)
 
 source(here::here("R", "plotting.R"))
 
+healthdata_filepath <- here::here("cache", "healthdata", sprintf("g62h-syeh-%s.csv", forecast_generation_date))
+if (!file.exists(healthdata_filepath)) {
+  if (!dir.exists(dirname(healthdata_filepath))) {
+    dir.create(dirname(healthdata_filepath), recursive = TRUE)
+  }
+  download.file(
+    sprintf(
+      "https://healthdata.gov/api/views/g62h-syeh/rows.csv?date=%s&accessType=DOWNLOAD",
+      format(forecast_generation_date, "%Y%m%d")
+    ),
+    healthdata_filepath
+  )
+}
+
+converted_healthdata_1d <-
+  readr::read_csv(healthdata_filepath) %>%
+  transmute(
+    geo_value = tolower(state),
+    time_value = date - 1L,
+    value = previous_day_admission_influenza_confirmed
+  ) %>%
+  bind_rows(
+    # API seems to complete state level with 0s in some cases rather than NAs.
+    # Get something sort of compatible with that by summing to national with
+    # na.omit = TRUE. As otherwise we have some NAs from probably territories
+    # propagated to US level.
+    {.} %>%
+      group_by(time_value) %>%
+      summarize(geo_value = "us", value = sum(value, na.rm = TRUE))
+  )
+
+converted_healthdata_7dav <-
+  converted_healthdata_1d %>%
+  group_by(geo_value) %>%
+  tidyr::complete(time_value = tidyr::full_seq(time_value, period = 1L)) %>%
+  ungroup() %>%
+  as_epi_df() %>%
+  group_by(geo_value) %>%
+  epi_slide(before = 6L,
+            ~ if (nrow(.x) == 7L) mean(.x$value) else NA_real_) %>%
+  ungroup() %>%
+  mutate(value = slide_value,
+         slide_value = NULL) %>%
+  as_tibble()
 
 flu_forecasts <- read_csv(params$predictions_file, show_col_types = FALSE) %>%
   mutate(
@@ -45,7 +89,8 @@ plot_state_forecasters(
   flu_forecasts %>% filter(geo_value != "us"),
   exclude_geos = params$exclude_geos,
   start_day = "2022-10-01",
-  ncol = 2
+  ncol = 2,
+  data_7dav_override = converted_healthdata_7dav
 ) %>%
   suppressMessages() %>%
   suppressWarnings() %>%
@@ -53,13 +98,18 @@ plot_state_forecasters(
 ```
 
 ```{r, fig.height = 10, fig.width = 15, echo=FALSE}
-# setup the plot and join corrections to the truth
-plot_nation_forecasters(
-  flu_forecasts %>% filter(geo_value == "us"),
-  exclude_geos = params$exclude_geos,
-  start_day = "2022-10-01"
-) %>%
-  suppressMessages() %>%
-  suppressWarnings() %>%
-  plotly::ggplotly()
+if ("us" %in% params$exclude_geos) {
+  print("us excluded")
+} else {
+  # setup the plot and join corrections to the truth
+  plot_nation_forecasters(
+    flu_forecasts %>% filter(geo_value == "us"),
+    exclude_geos = params$exclude_geos,
+    start_day = "2022-10-01",
+    data_7dav_override = converted_healthdata_7dav
+  ) %>%
+    suppressMessages() %>%
+    suppressWarnings() %>%
+    plotly::ggplotly()
+}
 ```
