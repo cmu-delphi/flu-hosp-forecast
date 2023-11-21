@@ -34,18 +34,6 @@ get_quantile_predictions <- function(
   forecast_cache_dir <- here::here("cache", "forecasters")
   n_core <- parallel::detectCores() - 1
 
-  make_start_day_ar <- function(ahead, ntrain, lags) {
-    # NOTE: Why eval?
-    offset <- eval(1 - max(ahead) - ntrain - max(lags))
-    start_day_ar <- function(forecast_date) {
-      return(as.Date(forecast_date) + offset)
-    }
-    return(start_day_ar)
-  }
-  # Use the larger `ntrain` value to make sure we always request and store in
-  # the cache the full date range for each signal.
-  start_day_ar <- make_start_day_ar(ahead, ntrain_nowindow, lags)
-
   ###############################################################################
   # LEARN THE QAR MODEL AND SAVE OUTPUT                                         #
   ###############################################################################
@@ -54,7 +42,7 @@ get_quantile_predictions <- function(
   signals_ar <- tibble::tibble(
     data_source = unique(c(response_data_source)),
     signal = unique(c(response_signal)),
-    start_day = list(start_day_ar),
+    start_day = as.Date("2021-12-04"),
     geo_values = list(states_dc_pr_vi),
     geo_type = geo_type
   )
