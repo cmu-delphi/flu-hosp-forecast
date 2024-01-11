@@ -1,40 +1,28 @@
 #' Returns the next instance of a given weekday. If that is today, return today.
-#' Weekday 0 is a Sunday.
+#' Weekday 0 is a Saturday.
 get_next_weekday <- function(date, wday) {
   return(as.Date(date) + (wday - lubridate::wday(date)) %% 7)
 }
 
-#' Returns the previous instance of a given weekday. If that is today, return today.
-#' Weekday 0 is a Sunday.
+#' Returns the previous instance of a given weekday. If that is today, return
+#' today. Weekday 0 is a Saturday.
 get_previous_weekday <- function(date, wday) {
-  return(as.Date(date) - (7 - (wday - lubridate::wday(date)) %% 7))
+  return(as.Date(date) + (((wday - lubridate::wday(date)) %% 7) - 7) + 7 * (wday == lubridate::wday(date)))
 }
 
-#' Uploads or downloads a folder to the s3bucket; direction can be c("upload", "download")
-manage_forecast_cache <- function(
-    rel_cache_dir,
-    bucket_name = "forecasting-team-data",
-    direction = "download",
-    verbose = FALSE) {
+#' Syncs with the s3bucket based on timestamps. The paste0 command below needs
+#' to have the slash at the end or else s3sync will mangle the directory
+#' structure.
+manage_forecast_cache <- function(rel_cache_dir, bucket_name = "forecasting-team-data", verbose = FALSE) {
   cache_path <- here::here(rel_cache_dir)
   if (!dir.exists(cache_path)) dir.create(cache_path)
 
   s3b <- aws.s3::get_bucket(bucket_name)
   if (verbose) {
-    aws.s3::s3sync(
-      cache_path,
-      s3b,
-      paste0("covid-hosp-forecast/", rel_cache_dir),
-      direction = direction
-    )
+    aws.s3::s3sync(cache_path, s3b, paste0("flu-hosp-forecast/", rel_cache_dir, "/"))
   } else {
     sink("/dev/null")
-    aws.s3::s3sync(
-      cache_path, s3b,
-      paste0("covid-hosp-forecast/", rel_cache_dir),
-      direction = direction,
-      verbose = FALSE
-    )
+    aws.s3::s3sync(cache_path, s3b, paste0("flu-hosp-forecast/", rel_cache_dir, "/"), verbose = FALSE)
     sink()
   }
   return(TRUE)
