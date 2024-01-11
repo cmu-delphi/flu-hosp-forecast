@@ -376,27 +376,27 @@ match_scalar_fn_arg <- function(arg) {
 
 make_caching_forecaster <- function(
     forecaster,
-    forecaster.name,
-    cache.parent.dirpath,
-    replace.results.with.trivial.for.mem = FALSE,
-    disable.saving = list(FALSE, "TRUE.because.internal.saving", TRUE)) {
+    forecaster_name,
+    cache_parent_dirpath,
+    replace_results_with_trivial_for_mem = FALSE,
+    disable_saving = list(FALSE, "TRUE.because.internal.saving", TRUE)) {
   assert_that(is_function(forecaster))
-  assert_that(is_scalar_character(forecaster.name))
-  assert_that(is_bool(replace.results.with.trivial.for.mem))
-  assert_that(is_scalar_character(cache.parent.dirpath))
-  disable.saving <- match_scalar_fn_arg(disable.saving)
-  cache.parent.dirpath <- here::here(cache.parent.dirpath)
+  assert_that(is_scalar_character(forecaster_name))
+  assert_that(is_bool(replace_results_with_trivial_for_mem))
+  assert_that(is_scalar_character(cache_parent_dirpath))
+  disable_saving <- match_scalar_fn_arg(disable_saving)
+  cache_parent_dirpath <- here::here(cache_parent_dirpath)
 
   return(
     (function(df_list, forecast_date, ...) {
-      if (!dir.exists(cache.parent.dirpath)) {
-        dir.create(cache.parent.dirpath)
+      if (!dir.exists(cache_parent_dirpath)) {
+        dir.create(cache_parent_dirpath)
       }
-      cache.dirpath <- file.path(cache.parent.dirpath, forecaster.name)
+      cache.dirpath <- file.path(cache_parent_dirpath, forecaster_name)
       cache.filepath <- file.path(cache.dirpath, paste0(forecast_date, ".RDS"))
       trivial.results <- tibble(ahead = 1L, geo_value = "-1", quantile = 0.5, value = NA_real_)
       if (file.exists(cache.filepath)) {
-        if (replace.results.with.trivial.for.mem) {
+        if (replace_results_with_trivial_for_mem) {
           cat("Cache file exists, but skipping loading & returning trivial results\n")
           return(trivial.results)
         } else {
@@ -406,7 +406,7 @@ make_caching_forecaster <- function(
       } else {
         cat(sprintf(
           "No cache file found; generating result and %s at %s.\n",
-          switch(disable.saving,
+          switch(disable_saving,
             "FALSE" = "storing",
             "TRUE.because.internal.saving" = "not storing at this level (saving is internal)",
             "TRUE" = "NOT storing (saving disabled)"
@@ -414,20 +414,20 @@ make_caching_forecaster <- function(
           cache.filepath
         ))
         ## We save time and have the same effect by skipping generating the
-        ## forecast if disable.saving is TRUE (and there is no internal saving)
+        ## forecast if disable_saving is TRUE (and there is no internal saving)
         ## and we are replacing the results with the trivial results.
-        if (!(identical(disable.saving, TRUE) && replace.results.with.trivial.for.mem)) {
+        if (!(identical(disable_saving, TRUE) && replace_results_with_trivial_for_mem)) {
           forecast <- forecaster(df_list, forecast_date, ...)
         }
-        ## We save only in the disable.saving FALSE case; we don't save in either
+        ## We save only in the disable_saving FALSE case; we don't save in either
         ## the TRUE or "TRUE.because.internal.saving" cases.
-        if (identical(disable.saving, FALSE)) {
+        if (identical(disable_saving, FALSE)) {
           if (!dir.exists(cache.dirpath)) {
             dir.create(cache.dirpath)
           }
           saveRDS(forecast, cache.filepath)
         }
-        if (replace.results.with.trivial.for.mem) {
+        if (replace_results_with_trivial_for_mem) {
           return(trivial.results)
         } else {
           return(forecast)
@@ -446,8 +446,8 @@ cached_forecast_is_available.default <- function(forecaster, forecast_date) {
 cached_forecast_is_available.caching_forecaster <- function(forecaster, forecast_date) {
   assert_that(is_scalar_atomic(forecast_date) && inherits(forecast_date, "Date"))
   ##
-  caching.env <- environment(forecaster)
-  cache.dirpath <- file.path(caching.env$cache.parent.dirpath, caching.env$forecaster.name)
+  caching_env <- environment(forecaster)
+  cache.dirpath <- file.path(caching_env$cache_parent_dirpath, caching_env$forecaster_name)
   cache.filepath <- file.path(cache.dirpath, paste0(forecast_date, ".RDS"))
   return(file.exists(cache.filepath))
 }
@@ -460,11 +460,11 @@ fetch_cached_forecast.caching_forecaster <- function(forecaster, forecast_date) 
   assert_that(cached_forecast_is_available(forecaster, forecast_date))
   ##
   ## TODO avoid code duplication and worries about race conditions
-  caching.env <- environment(forecaster)
-  cache.dirpath <- file.path(caching.env$cache.parent.dirpath, caching.env$forecaster.name)
+  caching_env <- environment(forecaster)
+  cache.dirpath <- file.path(caching_env$cache_parent_dirpath, caching_env$forecaster_name)
   cache.filepath <- file.path(cache.dirpath, paste0(forecast_date, ".RDS"))
   trivial.results <- tibble(ahead = 1L, geo_value = "-1", quantile = 0.5, value = NA_real_)
-  if (caching.env$replace.results.with.trivial.for.mem) {
+  if (caching_env$replace_results_with_trivial_for_mem) {
     return(trivial.results)
   } else {
     return(readRDS(cache.filepath))
@@ -483,7 +483,7 @@ make_forecaster_with_prespecified_args <- function(forecaster, ...) {
 
 #### END
 
-make_named_forecaster <- function(forecaster, forecaster.name) {
+make_named_forecaster <- function(forecaster, forecaster_name) {
   (function(df_list, forecast_date, ...) {
     forecaster(df_list, forecast_date, ...)
   }) %>% `class<-`("named_forecaster")
@@ -494,9 +494,9 @@ forecaster_name <- function(forecaster) {
 }
 
 forecaster_name.caching_forecaster <- function(forecaster) {
-  environment(forecaster)[["forecaster.name"]]
+  environment(forecaster)[["forecaster_name"]]
 }
 
 forecaster_name.named_forecaster <- function(forecaster) {
-  environment(forecaster)[["forecaster.name"]]
+  environment(forecaster)[["forecaster_name"]]
 }
