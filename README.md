@@ -29,6 +29,7 @@ python run.py --help
 -   `Makefile` - a Makefile for installing dependencies
 -   `R/` - importable R functions for the forecaster
 -   `scripts/` - other pipeline scripts
+-   `data-forecasts/` - output directory for forecasts
 
 ## Installation
 
