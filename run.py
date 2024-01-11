@@ -85,8 +85,6 @@ if not os.environ.get("FLU_SUBMISSIONS_DIR"):
 FLU_SUBMISSION_DIR = (
     Path(os.environ.get("FLU_SUBMISSIONS_DIR", "")) / "model-output" / "CMU-TimeSeries"
 )
-if not FLU_PREDICTIONS_FILE.exists():
-    raise FileNotFoundError(f"Flu predictions file {FLU_PREDICTIONS_FILE} not found.")
 if not FLU_SUBMISSION_DIR.exists():
     os.makedirs(FLU_SUBMISSION_DIR)
 
@@ -105,6 +103,10 @@ def make_forecasts(
 
 def copy_to_repo():
     """Copy predictions to the submission repo."""
+    if not FLU_PREDICTIONS_FILE.exists():
+        raise FileNotFoundError(
+            f"Flu predictions file {FLU_PREDICTIONS_FILE} not found."
+        )
     shutil.copy(FLU_PREDICTIONS_FILE, FLU_SUBMISSION_DIR)
 
 
