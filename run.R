@@ -42,8 +42,8 @@ source(here::here("R", "naive_direction_forecaster.R"))
 ##### Set parameters.
 forecast_generation_date <- as.Date(Sys.getenv(
   "FORECAST_GENERATION_DATE",
-  unset = Sys.Date()
-  # unset = as.Date("2022-12-01")
+  # unset = Sys.Date()
+  unset = as.Date("2024-01-24")
 ))
 forecast_due_date <- as.Date(Sys.getenv(
   "FORECAST_DUE_DATE",
@@ -59,176 +59,159 @@ exclude_geos <- tolower(c(
 enforced_latency <- 5L # Friday of preceding week, calculated from `forecast_due_date` (expected to be a Wednesday)
 
 
-healthdata_filepath <- here::here("cache", "healthdata", sprintf("g62h-syeh-%s.csv", forecast_generation_date))
-if (!file.exists(healthdata_filepath)) {
-  if (!dir.exists(dirname(healthdata_filepath))) {
-    dir.create(dirname(healthdata_filepath), recursive = TRUE)
+patch_around_delayed_api_data <- TRUE
+if (patch_around_delayed_api_data) {
+  healthdata_filepath <- here::here("cache", "healthdata", sprintf("g62h-syeh-%s.csv", forecast_generation_date))
+  if (!file.exists(healthdata_filepath)) {
+    if (!dir.exists(dirname(healthdata_filepath))) {
+      dir.create(dirname(healthdata_filepath), recursive = TRUE)
+    }
+
+    # meta_data <- readr::read_csv("https://healthdata.gov/resource/qqte-vkut.csv?$query=SELECT%20update_date%2C%20days_since_update%2C%20user%2C%20rows%2C%20row_change%2C%20columns%2C%20column_change%2C%20metadata_published%2C%20metadata_updates%2C%20column_level_metadata%2C%20column_level_metadata_updates%2C%20archive_link%20ORDER%20BY%20update_date%20DESC")
+    # meta_data %>% select("archive_link") %>% slice(2)
+
+    # download.file(
+    #   sprintf(
+    #     "https://healthdata.gov/api/views/g62h-syeh/rows.csv?date=%s&accessType=DOWNLOAD",
+    #     format(forecast_generation_date, "%Y%m%d")
+    #   ),
+    #   healthdata_filepath
+    # )
+
+    # 1 https://us-dhhs-aa.s3.us-east-2.amazonaws.com/g62h-syeh_2024-01-24T13-05-06.csv
+    # 2 https://us-dhhs-aa.s3.us-east-2.amazonaws.com/g62h-syeh_2024-01-24T12-06-28.csv
+    # 3 https://us-dhhs-aa.s3.us-east-2.amazonaws.com/g62h-syeh_2024-01-19T13-05-11.csv
+
+    download.file(
+      "https://us-dhhs-aa.s3.us-east-2.amazonaws.com/g62h-syeh_2024-01-19T13-05-11.csv",
+      healthdata_filepath
+    )
   }
-  download.file(
-    sprintf(
-      "https://healthdata.gov/api/views/g62h-syeh/rows.csv?date=%s&accessType=DOWNLOAD",
-      format(forecast_generation_date, "%Y%m%d")
-    ),
-    healthdata_filepath
+
+  converted_healthdata_1d <-
+    readr::read_csv(healthdata_filepath) %>%
+    transmute(
+      geo_value = tolower(state),
+      time_value = date - 1L,
+      value = previous_day_admission_influenza_confirmed
+    ) %>%
+    bind_rows(
+      # API seems to complete state level with 0s in some cases rather than NAs.
+      # Get something sort of compatible with that by summing to national with
+      # na.omit = TRUE. As otherwise we have some NAs from probably territories
+      # propagated to US level.
+      (.) %>%
+        group_by(time_value) %>%
+        summarize(geo_value = "us", value = sum(value, na.rm = TRUE))
+    )
+
+  converted_healthdata_prop_7dav <-
+    converted_healthdata_1d %>%
+    filter(geo_value != "us") %>%
+    group_by(geo_value) %>%
+    tidyr::complete(time_value = tidyr::full_seq(time_value, period = 1L)) %>%
+    ungroup() %>%
+    as_epi_df() %>%
+    group_by(geo_value) %>%
+    epi_slide(
+      before = 6L,
+      ~ if (nrow(.x) == 7L) sum(.x$value) else NA_real_
+    ) %>%
+    ungroup() %>%
+    as_tibble() %>%
+    left_join(
+      state_census %>%
+        transmute(
+          geo_value = tolower(ABBR),
+          pop = POPESTIMATE2019
+        ),
+      by = c("geo_value")
+    ) %>%
+    mutate(
+      value = slide_value,
+      slide_value = NULL
+    ) %>%
+    mutate(value = value / 7 / pop * 100e3) %>%
+    select(-pop)
+
+  df_list <- list(
+    converted_healthdata_prop_7dav %>% covidcast::as.covidcast_signal("confirmed_admissions_influenza_1d_prop_7dav")
+  )
+
+  ## Debugging code to compare with the API.
+  ## comparison_snapshot_prop_7dav <- bind_rows(
+  ##   epidatr::pub_covidcast(
+  ##              "hhs",
+  ##              "confirmed_admissions_influenza_1d_prop_7dav",
+  ##              "state",
+  ##              "day",
+  ##              "*",
+  ##              epirange(forecast_due_date - 2000L, forecast_due_date),
+  ##              as_of = strftime(forecast_due_date, "%Y-%m-%d")
+  ##            ),
+  ##   epidatr::pub_covidcast(
+  ##              "hhs",
+  ##              "confirmed_admissions_influenza_1d_prop_7dav",
+  ##              "nation",
+  ##              "day",
+  ##              "*",
+  ##              epirange(forecast_due_date - 2000L, forecast_due_date),
+  ##              as_of = strftime(forecast_due_date, "%Y-%m-%d")
+  ##            )
+  ## )
+
+  ## full_join(
+  ##   converted_healthdata_prop_7dav,
+  ##   comparison_snapshot_prop_7dav %>% select(geo_value, time_value, value),
+  ##   by = c("geo_value", "time_value")
+  ## ) %>%
+  ##   filter(is.na(value.x) != is.na(value.y) |
+  ##          !is.na(value.x) & abs(value.x-value.y) > 1e-1) %>%
+  ##   filter(time_value <= forecast_generation_date - 7L * 4L) %>%
+  ##   # count(time_value) %>%
+  ##   # tail()
+  ##   # print(n=1500L)
+  ##   filter(geo_value != "us") %>%
+  ##   arrange(time_value, geo_value) %>%
+  ##   tail()
+  ##   # ^ these look like known mismatches
+
+  ## full_join(
+  ##   converted_healthdata,
+  ##   comparison_snapshot %>% select(geo_value, time_value, value),
+  ##   by = c("geo_value", "time_value")
+  ## ) %>%
+  ##   filter(is.na(value.x) != is.na(value.y) |
+  ##          !is.na(value.x) & abs(value.x-value.y) > 1e-1) %>%
+  ##   filter(time_value <= forecast_generation_date - 7L * 4L) %>%
+  ##   # count(time_value) %>%
+  ##   # tail()
+  ##   # print(n=1500L)
+  ##   filter(geo_value == "us") %>%
+  ##   arrange(time_value, geo_value) %>%
+  ##   tail()
+
+  ## full_join(
+  ##   converted_healthdata_prop_7dav,
+  ##   comparison_snapshot_prop_7dav %>% select(geo_value, time_value, value),
+  ##   by = c("geo_value", "time_value")
+  ## ) %>%
+  ##   filter(is.na(value.x) != is.na(value.y) |
+  ##          !is.na(value.x) & abs(value.x-value.y) > 1e-1) %>%
+  ##   filter(time_value <= forecast_generation_date - 7L * 4L) %>%
+  ##   summarize(max(abs(value.x - value.y), na.rm = TRUE))
+} else {
+  converted_healthdata_1d <- NULL
+  df_list <- list(
+    get_data(
+      "hhs",
+      "confirmed_admissions_influenza_1d_prop_7dav",
+      as.Date("2020-01-06"),
+      forecast_generation_date
+    ) %>% covidcast::as.covidcast_signal("confirmed_admissions_influenza_1d_prop_7dav")
   )
 }
 
-converted_healthdata_1d <-
-  readr::read_csv(healthdata_filepath) %>%
-  transmute(
-    geo_value = tolower(state),
-    time_value = date - 1L,
-    value = previous_day_admission_influenza_confirmed
-  ) %>%
-  bind_rows(
-    # API seems to complete state level with 0s in some cases rather than NAs.
-    # Get something sort of compatible with that by summing to national with
-    # na.omit = TRUE. As otherwise we have some NAs from probably territories
-    # propagated to US level.
-    (.) %>%
-      group_by(time_value) %>%
-      summarize(geo_value = "us", value = sum(value, na.rm = TRUE))
-  )
-
-converted_healthdata_prop_7dav <-
-  converted_healthdata_1d %>%
-  group_by(geo_value) %>%
-  tidyr::complete(time_value = tidyr::full_seq(time_value, period = 1L)) %>%
-  ungroup() %>%
-  as_epi_df() %>%
-  group_by(geo_value) %>%
-  epi_slide(
-    before = 6L,
-    ~ if (nrow(.x) == 7L) sum(.x$value) else NA_real_
-  ) %>%
-  ungroup() %>%
-  as_tibble() %>%
-  left_join(
-    state_census %>%
-      transmute(
-        geo_value = tolower(ABBR),
-        pop = POPESTIMATE2019
-      ),
-    by = c("geo_value")
-  ) %>%
-  mutate(
-    value = slide_value,
-    slide_value = NULL
-  ) %>%
-  mutate(value = value / 7 / pop * 100e3) %>%
-  select(-pop)
-
-## comparison_snapshot_prop_7dav <- bind_rows(
-##   epidatr::pub_covidcast(
-##              "hhs",
-##              "confirmed_admissions_influenza_1d_prop_7dav",
-##              "state",
-##              "day",
-##              "*",
-##              epirange(forecast_due_date - 2000L, forecast_due_date),
-##              as_of = strftime(forecast_due_date, "%Y-%m-%d")
-##            ),
-##   epidatr::pub_covidcast(
-##              "hhs",
-##              "confirmed_admissions_influenza_1d_prop_7dav",
-##              "nation",
-##              "day",
-##              "*",
-##              epirange(forecast_due_date - 2000L, forecast_due_date),
-##              as_of = strftime(forecast_due_date, "%Y-%m-%d")
-##            )
-## )
-
-## full_join(
-##   converted_healthdata_prop_7dav,
-##   comparison_snapshot_prop_7dav %>% select(geo_value, time_value, value),
-##   by = c("geo_value", "time_value")
-## ) %>%
-##   filter(is.na(value.x) != is.na(value.y) |
-##          !is.na(value.x) & abs(value.x-value.y) > 1e-1) %>%
-##   filter(time_value <= forecast_generation_date - 7L * 4L) %>%
-##   # count(time_value) %>%
-##   # tail()
-##   # print(n=1500L)
-##   filter(geo_value != "us") %>%
-##   arrange(time_value, geo_value) %>%
-##   tail()
-##   # ^ these look like known mismatches
-
-## full_join(
-##   converted_healthdata,
-##   comparison_snapshot %>% select(geo_value, time_value, value),
-##   by = c("geo_value", "time_value")
-## ) %>%
-##   filter(is.na(value.x) != is.na(value.y) |
-##          !is.na(value.x) & abs(value.x-value.y) > 1e-1) %>%
-##   filter(time_value <= forecast_generation_date - 7L * 4L) %>%
-##   # count(time_value) %>%
-##   # tail()
-##   # print(n=1500L)
-##   filter(geo_value == "us") %>%
-##   arrange(time_value, geo_value) %>%
-##   tail()
-
-## full_join(
-##   converted_healthdata_prop_7dav,
-##   comparison_snapshot_prop_7dav %>% select(geo_value, time_value, value),
-##   by = c("geo_value", "time_value")
-## ) %>%
-##   filter(is.na(value.x) != is.na(value.y) |
-##          !is.na(value.x) & abs(value.x-value.y) > 1e-1) %>%
-##   filter(time_value <= forecast_generation_date - 7L * 4L) %>%
-##   summarize(max(abs(value.x - value.y), na.rm = TRUE))
-
-if (!exists("download_signal_bu")) {
-  download_signal_bu <- evalcast::download_signal
-}
-unlockBinding("download_signal", asNamespace("evalcast"))
-assignInNamespace(
-  ns = asNamespace("evalcast"),
-  "download_signal",
-  function(data_source, signal, start_day = NULL, end_day = NULL, geo_type = "county", geo_values = "*", as_of = NULL, time_type = "day", offline_signal_dir = NULL, ...) {
-    stopifnot(identical(data_source, "hhs"))
-    stopifnot(identical(signal, "confirmed_admissions_influenza_1d_prop_7dav"))
-    print(as_of)
-    stopifnot(identical(as_of, NULL) || identical(as_of, forecast_generation_date))
-    stopifnot(identical(time_type, "day"))
-    # don't care about offline_signal_dir
-    rlang::check_dots_empty()
-    result_tbl <-
-      if (identical(geo_type, "state")) {
-        converted_healthdata_prop_7dav %>%
-          filter(
-            if (identical(geo_values, "*")) {
-              geo_value != "us"
-            } else {
-              geo_value %in% geo_values
-            },
-            start_day <= time_value,
-            time_value <= end_day
-          )
-      } else if (identical(geo_type, "nation")) {
-        converted_healthdata_prop_7dav %>%
-          filter(
-            if (identical(geo_values, "*")) {
-              geo_value == "us"
-            } else {
-              geo_value %in% geo_values
-            },
-            start_day <= time_value,
-            time_value <= end_day
-          )
-      } else {
-        cli::cli_abort("Can't handle geo_type of {geo_type}")
-      }
-    # convert to covidcast signal the lazy way, by stealing from the API result:
-    evalcast_result <- download_signal_bu(data_source, signal, start_day, end_day, geo_type, geo_values, as_of, time_type, offline_signal_dir, ...)
-    result_ccs <- evalcast_result %>%
-      filter(FALSE) %>%
-      bind_rows(result_tbl)
-    return(result_ccs)
-  }
-)
 
 if (as.POSIXlt(forecast_due_date)$wday != 3L) {
   cli::cli_alert_warning("forecast_due_date is expected to be a Wednesday, but it's not")
@@ -258,6 +241,7 @@ if (as.logical(Sys.getenv("FLU_HOSP_CLEAR_CACHE", unset = FALSE))) {
 
 ##### Make quantile forecasts.
 quantile_predictions <- get_quantile_predictions(
+  df_list,
   forecast_due_date,
   delphi_reference_date,
   horizons,

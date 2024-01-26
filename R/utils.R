@@ -191,3 +191,108 @@ make_latency_enforced_forecaster <- function(forecaster, min_latency_to_enforce,
     )
   }
 }
+
+get_health_data <- function() {
+  healthdata_filepath <- here::here("cache", "healthdata", sprintf("g62h-syeh-%s.csv", forecast_generation_date))
+  if (!file.exists(healthdata_filepath)) {
+    if (!dir.exists(dirname(healthdata_filepath))) {
+      dir.create(dirname(healthdata_filepath), recursive = TRUE)
+    }
+    download.file(
+      sprintf(
+        "https://healthdata.gov/api/views/g62h-syeh/rows.csv?date=%s&accessType=DOWNLOAD",
+        format(forecast_generation_date, "%Y%m%d")
+      ),
+      healthdata_filepath
+    )
+  }
+
+  converted_healthdata_1d <-
+    readr::read_csv(healthdata_filepath) %>%
+    transmute(
+      geo_value = tolower(state),
+      time_value = date - 1L,
+      value = previous_day_admission_influenza_confirmed
+    ) %>%
+    bind_rows(
+      # API seems to complete state level with 0s in some cases rather than NAs.
+      # Get something sort of compatible with that by summing to national with
+      # na.omit = TRUE. As otherwise we have some NAs from probably territories
+      # propagated to US level.
+      (.) %>%
+        group_by(time_value) %>%
+        summarize(geo_value = "us", value = sum(value, na.rm = TRUE))
+    )
+}
+
+make_forecaster_use_data_window <- function(forecaster) {
+  function(df_list, forecast_date, ...) {
+    dots <- list(...)
+    offset <- 1 - max(dots$ahead) - max(dots$lags) - dots$n
+    forecaster(
+      df_list %>%
+        map(~ .x %>% filter(time_value >= forecast_date + offset)),
+      forecast_date,
+      ...
+    )
+  }
+}
+
+### Ported from covid-hosp-forecast on 2024-01-24
+
+#' This is a replacement for evalcast::get_predictions.
+get_predictions_new <- function(
+    df_list,
+    forecaster,
+    name_of_forecaster,
+    forecast_date,
+    response_data_source = "hhs",
+    response_data_signal = "confirmed_admissions_influenza_1d_prop_7dav",
+    incidence_period = "day",
+    forecaster_args = list()) {
+  out <- rlang::inject(
+    forecaster(
+      df_list = df_list,
+      forecast_date = forecast_date,
+      !!!forecaster_args
+    )
+  ) %>%
+    mutate(
+      forecaster = name_of_forecaster,
+      forecast_date = forecast_date,
+      data_source = response_data_source,
+      signal = response_data_signal,
+      target_end_date = forecast_date + ahead,
+      incidence_period = incidence_period,
+    )
+  class(out) <- c("predictions_cards", class(out))
+  out
+}
+
+#' Wrapper around epidatr::pub_covidcast that simplifies the input and formats
+#' the output.
+get_data <- function(source, signal, start_date, forecast_date) {
+  epidatr::pub_covidcast(
+    source,
+    signal,
+    "state",
+    "day",
+    "*",
+    epidatr::epirange(start_date, forecast_date),
+    as_of = strftime(forecast_date, format = "%Y-%m-%d")
+  ) %>%
+    {
+      if (nrow(.) == 0) {
+        stop(sprintf(
+          "No data found for source %s, signal %s, start_date %s, forecast_date %s",
+          source, signal, start_date, forecast_date
+        ))
+      }
+      .
+    } %>%
+    rename(
+      "data_source" = "source",
+    ) %>%
+    select(-direction) %>%
+    covidcast::as.covidcast_signal(signal)
+}
