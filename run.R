@@ -3,14 +3,14 @@
 # Will produce the quantile and direction forecasts for the current week (unless
 # parameters are set otherwise.)
 #
-# The forecast generation date is usually today. The due date is the date of the
-# forecast, which should be the most recent next Wednesday (it is also the
-# effective as of date for requesting API data). The CDC defines the reference
-# date to be the Saturday after the due date; this refers to unshifted data from
-# "previous day hospital admissions" data provided by NHSN, which Delphi has
-# already shifted in our API. Therefore Delphi and CDC reference dates are off
-# by one. The horizons are the number of weeks ahead to forecast, relative to
-# the reference date.
+# The FORECAST_GENERATION_DATE is usually today. The FORECAST_DUE_DATE is the
+# date of the forecast, which should be the most recent next Wednesday (it is
+# also the effective as of date for requesting API data). The CDC defines the
+# reference date to be the Saturday after the due date; this refers to unshifted
+# data from "previous day hospital admissions" data provided by NHSN, which
+# Delphi has already shifted in our API. Therefore DELPHI_REFERENCE_DATE and
+# CDC_REFERENCE_DATE are off by one. The horizons are the number of weeks ahead
+# to forecast, relative to the reference date.
 #
 # To exclude a state from the forecast, add its two-letter state code to the
 # exclude_geos vector below. "as", "gu", "mp", and "vi" are excluded by default
@@ -40,26 +40,26 @@ source(here::here("R", "naive_direction_forecaster.R"))
 
 
 ##### Set parameters.
-forecast_generation_date <- as.Date(Sys.getenv(
+FORECAST_GENERATION_DATE <- as.Date(Sys.getenv(
   "FORECAST_GENERATION_DATE",
   unset = Sys.Date()
   # unset = as.Date("2022-12-01")
 ))
-forecast_due_date <- as.Date(Sys.getenv(
+FORECAST_DUE_DATE <- as.Date(Sys.getenv(
   "FORECAST_DUE_DATE",
-  unset = get_next_weekday(forecast_generation_date, 4)
+  unset = get_next_weekday(FORECAST_GENERATION_DATE, 4)
 ))
-cdc_reference_date <- get_next_weekday(forecast_due_date, 0)
-delphi_reference_date <- cdc_reference_date - 1L
-horizons <- 0:3 # no -1 as it may break the forecaster
-exclude_geos <- tolower(c(
+CDC_REFERENCE_DATE <- get_next_weekday(FORECAST_DUE_DATE, 0)
+DELPHI_REFERENCE_DATE <- CDC_REFERENCE_DATE - 1L
+HORIZONS <- 0:3 # no -1 as it may break the forecaster
+EXCLUDE_GEOS <- tolower(c(
   c("as", "gu", "mp", "vi"),
   c()
 ))
-enforced_latency <- 5L # Friday of preceding week, calculated from `forecast_due_date` (expected to be a Wednesday)
+ENFORCED_LATENCY <- 5L # Friday of preceding week, calculated from `forecast_due_date` (expected to be a Wednesday)
 
 
-healthdata_filepath <- here::here("cache", "healthdata", sprintf("g62h-syeh-%s.csv", forecast_generation_date))
+healthdata_filepath <- here::here("cache", "healthdata", sprintf("g62h-syeh-%s.csv", FORECAST_GENERATION_DATE))
 if (!file.exists(healthdata_filepath)) {
   if (!dir.exists(dirname(healthdata_filepath))) {
     dir.create(dirname(healthdata_filepath), recursive = TRUE)
@@ -67,7 +67,7 @@ if (!file.exists(healthdata_filepath)) {
   download.file(
     sprintf(
       "https://healthdata.gov/api/views/g62h-syeh/rows.csv?date=%s&accessType=DOWNLOAD",
-      format(forecast_generation_date, "%Y%m%d")
+      format(FORECAST_GENERATION_DATE, "%Y%m%d")
     ),
     healthdata_filepath
   )
@@ -191,7 +191,7 @@ assignInNamespace(
     stopifnot(identical(data_source, "hhs"))
     stopifnot(identical(signal, "confirmed_admissions_influenza_1d_prop_7dav"))
     print(as_of)
-    stopifnot(identical(as_of, NULL) || identical(as_of, forecast_generation_date))
+    stopifnot(identical(as_of, NULL) || identical(as_of, FORECAST_GENERATION_DATE))
     stopifnot(identical(time_type, "day"))
     # don't care about offline_signal_dir
     rlang::check_dots_empty()
@@ -230,7 +230,7 @@ assignInNamespace(
   }
 )
 
-if (as.POSIXlt(forecast_due_date)$wday != 3L) {
+if (as.POSIXlt(FORECAST_DUE_DATE)$wday != 3L) {
   cli::cli_alert_warning("forecast_due_date is expected to be a Wednesday, but it's not")
   Sys.sleep(3)
 }
@@ -251,25 +251,25 @@ if (as.logical(Sys.getenv("FLU_HOSP_CLEAR_CACHE", unset = FALSE))) {
     fs::dir_delete(here::here("cache", "evalcast"))
   }
   # Clear forecaster cache.
-  if (file.exists(here::here("cache", "forecaster", "ens1", sprintf("%s.RDS", forecast_due_date)))) {
-    fs::file_delete(here::here("cache", "forecaster", "ens1", sprintf("%s.RDS", forecast_due_date)))
+  if (file.exists(here::here("cache", "forecaster", "ens1", sprintf("%s.RDS", FORECAST_DUE_DATE)))) {
+    fs::file_delete(here::here("cache", "forecaster", "ens1", sprintf("%s.RDS", FORECAST_DUE_DATE)))
   }
 }
 
 ##### Make quantile forecasts.
 quantile_predictions <- get_quantile_predictions(
-  forecast_due_date,
-  delphi_reference_date,
-  horizons,
-  enforced_latency
+  FORECAST_DUE_DATE,
+  DELPHI_REFERENCE_DATE,
+  HORIZONS,
+  ENFORCED_LATENCY
 )
 
 ##### Make direction forecasts.
 direction_predictions <- get_direction_predictions(
-  forecast_due_date,
-  delphi_reference_date,
+  FORECAST_DUE_DATE,
+  DELPHI_REFERENCE_DATE,
   quantile_predictions,
-  enforced_latency,
+  ENFORCED_LATENCY,
   data_1d_override = converted_healthdata_1d
 )
 
@@ -287,7 +287,7 @@ combined_predictions <- bind_rows(
   arrange(location, reference_date, target, horizon, output_type, output_type_id)
 unfiltered_csv_path <- fs::path(
   output_dir,
-  sprintf("%s-CMU-TimeSeries-unfiltered.csv", cdc_reference_date)
+  sprintf("%s-CMU-TimeSeries-unfiltered.csv", CDC_REFERENCE_DATE)
 )
 write_csv(
   combined_predictions,
@@ -308,11 +308,11 @@ keeps <- c(
   "value"
 )
 filtered_combined_predictions <- combined_predictions %>%
-  filter(!geo_value %in% exclude_geos) %>%
+  filter(!geo_value %in% EXCLUDE_GEOS) %>%
   select(all_of(keeps))
 filtered_csv_path <- fs::path(
   output_dir,
-  sprintf("%s-CMU-TimeSeries.csv", cdc_reference_date)
+  sprintf("%s-CMU-TimeSeries.csv", CDC_REFERENCE_DATE)
 )
 write_csv(
   filtered_combined_predictions,
@@ -326,11 +326,12 @@ rmarkdown::render(
   fs::path("scripts", "plot_prediction_cards.Rmd"),
   output_file = fs::path(
     output_dir,
-    sprintf("%s-flu-forecast.html", cdc_reference_date)
+    sprintf("%s-flu-forecast.html", CDC_REFERENCE_DATE)
   ),
   params = list(
-    exclude_geos = exclude_geos,
-    predictions_file = unfiltered_csv_path
+    exclude_geos = EXCLUDE_GEOS,
+    predictions_file = unfiltered_csv_path,
+    forecast_generation_date = FORECAST_GENERATION_DATE
   )
 )
 

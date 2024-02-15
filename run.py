@@ -7,10 +7,10 @@ This utility mostly handles the process of copying the submission files,
 committing to the repo, and posting to Slack. It can also generate the
 forecasts.
 
-The generation date is usually today. The due date is the date of the forecast,
-which should be the most recent next Wednesday (it is also the effective as of
-date for requesting API data). The reference date is the Saturday after the due
-date.
+The FORECAST_GENERATION_DATE is usually today. The FORECAST_DUE_DATE is the date
+of the forecast, which should be the most recent next Wednesday (it is also the
+effective as of date for requesting API data). The REFERENCE_DATE is the
+Saturday after the due date.
 
 To generate forecasts simply run:
 
@@ -70,6 +70,8 @@ def get_previous_weekday(cur_date: datetime, weekday: int) -> datetime:
 FORECAST_GENERATION_DATE = datetime.today()
 FORECAST_DUE_DATE = get_next_weekday(FORECAST_GENERATION_DATE, 2)
 REFERENCE_DATE = get_next_weekday(FORECAST_DUE_DATE, 5)
+os.environ["FORECAST_GENERATION_DATE"] = FORECAST_GENERATION_DATE.strftime("%Y-%m-%d")
+os.environ["FORECAST_DUE_DATE"] = FORECAST_DUE_DATE.strftime("%Y-%m-%d")
 FLU_PREDICTIONS_FILE = (
     Path(os.getcwd())
     / "data-forecasts"

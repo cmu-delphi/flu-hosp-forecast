@@ -6,6 +6,7 @@ output: html_document
 params:
   exclude_geos: !r character(0L)
   predictions_file: !r character(0L)
+  forecast_generation_date: !r Sys.Date()
 ---
 
 ```{r setup, include=FALSE, echo=FALSE}
@@ -21,7 +22,7 @@ library(zookeeper)
 
 source(here::here("R", "plotting.R"))
 
-healthdata_filepath <- here::here("cache", "healthdata", sprintf("g62h-syeh-%s.csv", forecast_generation_date))
+healthdata_filepath <- here::here("cache", "healthdata", sprintf("g62h-syeh-%s.csv", params$forecast_generation_date))
 if (!file.exists(healthdata_filepath)) {
   if (!dir.exists(dirname(healthdata_filepath))) {
     dir.create(dirname(healthdata_filepath), recursive = TRUE)
@@ -29,7 +30,7 @@ if (!file.exists(healthdata_filepath)) {
   download.file(
     sprintf(
       "https://healthdata.gov/api/views/g62h-syeh/rows.csv?date=%s&accessType=DOWNLOAD",
-      format(forecast_generation_date, "%Y%m%d")
+      format(params$forecast_generation_date, "%Y%m%d")
     ),
     healthdata_filepath
   )
@@ -47,7 +48,7 @@ converted_healthdata_1d <-
     # Get something sort of compatible with that by summing to national with
     # na.omit = TRUE. As otherwise we have some NAs from probably territories
     # propagated to US level.
-    {.} %>%
+    (.) %>%
       group_by(time_value) %>%
       summarize(geo_value = "us", value = sum(value, na.rm = TRUE))
   )
@@ -59,11 +60,15 @@ converted_healthdata_7dav <-
   ungroup() %>%
   as_epi_df() %>%
   group_by(geo_value) %>%
-  epi_slide(before = 6L,
-            ~ if (nrow(.x) == 7L) mean(.x$value) else NA_real_) %>%
+  epi_slide(
+    before = 6L,
+    ~ if (nrow(.x) == 7L) mean(.x$value) else NA_real_
+  ) %>%
   ungroup() %>%
-  mutate(value = slide_value,
-         slide_value = NULL) %>%
+  mutate(
+    value = slide_value,
+    slide_value = NULL
+  ) %>%
   as_tibble()
 
 flu_forecasts <- read_csv(params$predictions_file, show_col_types = FALSE) %>%
