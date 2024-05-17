@@ -23,21 +23,7 @@
 # at some point.
 #
 
-library(checkmate)
-library(dplyr)
-library(epidatr)
-library(epiprocess)
-library(glue)
-library(magrittr)
-library(readr)
-library(rlang)
-library(stringr)
-library(tibble)
-library(tidyr)
-
-source(here::here("R", "approx-cdf.R"))
-source(here::here("R", "utils.R"))
-
+source(here::here("R", "load_all.R"))
 
 # These are the dates for which we will produce retrospective forecasts.
 retrospective_forecast_dates <- seq(as.Date("2022-10-17"), as.Date("2022-12-19"), by = "week")

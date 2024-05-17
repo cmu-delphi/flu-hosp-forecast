@@ -2,13 +2,7 @@
 #### be a one-off analysis and it was easier. We may want to restructure things
 #### to de-duplicate at some point.
 
-library(dplyr)
-library(evalcast)
-library(pipeR)
-library(purrr)
-library(tibble)
-source(here::here("R", "quantgen.R"))
-source(here::here("R", "ensemble.R"))
+source(here::here("R", "load_all.R"))
 
 
 base_offline_signal_dir <- here::here("cache", "evalcast")

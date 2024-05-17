@@ -1,13 +1,4 @@
-library(checkmate)
-library(data.table)
-library(dplyr)
-library(epidatr)
-library(epiprocess)
-library(readr)
-library(rlang)
-library(tibble)
-library(tidyr)
-
+source(here::here("R", "load_all.R"))
 
 states_dc_pr_vi <- c(
   "al", "ak", "az", "ar", "ca", "co", "ct", "dc", "de", "fl",

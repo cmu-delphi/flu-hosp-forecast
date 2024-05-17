@@ -25,17 +25,6 @@
 #   Appendix 1.
 #
 
-library(checkmate)
-library(dplyr)
-library(epidatr)
-library(epiprocess)
-library(readr)
-library(rlang)
-library(tibble)
-library(tidyr)
-source(here::here("R", "approx-cdf.R"))
-source(here::here("R", "utils.R"))
-
 
 get_direction_predictions <- function(
     forecast_due_date,

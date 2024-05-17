@@ -1,13 +1,3 @@
-library(covidcast)
-library(dplyr)
-library(evalcast)
-library(magrittr)
-library(tibble)
-
-source(here::here("R", "quantgen.R"))
-source(here::here("R", "ensemble.R"))
-source(here::here("R", "utils.R"))
-
 
 get_quantile_predictions <- function(
     forecast_due_date,

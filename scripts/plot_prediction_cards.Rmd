@@ -9,17 +9,7 @@ params:
 ---
 
 ```{r setup, include=FALSE, echo=FALSE}
-library(aws.s3)
-library(covidcast)
-library(evalcast)
-library(lubridate)
-library(magrittr)
-library(pipeR)
-library(readr)
-library(tidyverse)
-library(zookeeper)
-
-source(here::here("R", "plotting.R"))
+source(here::here("R", "load_all.R"))
 
 healthdata_filepath <- here::here("cache", "healthdata", sprintf("g62h-syeh-%s.csv", forecast_generation_date))
 if (!file.exists(healthdata_filepath)) {

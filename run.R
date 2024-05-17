@@ -28,15 +28,7 @@
 #  - notebook file: data-forecasts/CMU-TimeSeries/YYYY-MM-DD-flu-forecast.html
 #  - cache files in cache/
 #
-
-library(dotenv)
-library(dplyr)
-library(epidatr)
-library(magrittr)
-library(hubValidations)
-
-source(here::here("R", "train_model.R"))
-source(here::here("R", "naive_direction_forecaster.R"))
+source(here::here("R", "load_all.R"))
 
 
 ##### Set parameters.

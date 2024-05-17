@@ -1,9 +1,3 @@
-library(assertthat)
-library(dplyr)
-library(quantgen)
-library(rlang)
-library(tidyr)
-
 #' Helper functions
 
 make_newx <- function(df_features) {
