@@ -191,3 +191,100 @@ make_latency_enforced_forecaster <- function(forecaster, min_latency_to_enforce,
     )
   }
 }
+
+#' get_health_data
+#'
+#' This function gets the health data directly from healthdata.gov (bypassing
+#' some errors in Delphi pipelines). First, we consult the metadata store, which
+#' allows us to find the most recent update date to the as_of date provided.
+#' Finding that points us to the versioned data in AWS bucket, which we
+#' download. Then we transform the data for consistency with the Delphi Epidata
+#' API (transforming it from counts to a ).
+#'
+#' Metadata archive link: https://healthdata.gov/dataset/COVID-19-Reported-Patient-Impact-and-Hospital-Capa/qqte-vkut
+#' Healthdata archive link: https://healthdata.gov/Hospital/COVID-19-Reported-Patient-Impact-and-Hospital-Capa/g62h-syeh
+#'
+get_health_data <- function(as_of) {
+  checkmate::assert_date(as_of, min.len = 1, max.len = 1)
+
+  cache_path <- here::here("cache", "healthdata")
+  if (!dir.exists(cache_path)) {
+    dir.create(cache_path, recursive = TRUE)
+  }
+
+  metadata_path <- here::here(cache_path, "metadata.csv")
+  if (!file.exists(metadata_path)) {
+    meta_data <- readr::read_csv("https://healthdata.gov/resource/qqte-vkut.csv?$query=SELECT%20update_date%2C%20days_since_update%2C%20user%2C%20rows%2C%20row_change%2C%20columns%2C%20column_change%2C%20metadata_published%2C%20metadata_updates%2C%20column_level_metadata%2C%20column_level_metadata_updates%2C%20archive_link%20ORDER%20BY%20update_date%20DESC%20LIMIT%2010000")
+    readr::write_csv(meta_data, metadata_path)
+  } else {
+    meta_data <- readr::read_csv(metadata_path)
+  }
+
+  most_recent_row <- meta_data %>%
+    filter(update_date <= as_of + 1) %>%
+    arrange(desc(update_date)) %>%
+    slice(1)
+
+  if (nrow(most_recent_row) == 0) {
+    cli::cli_abort("No data available for the given date.")
+  }
+
+  data_filepath <- here::here(cache_path, sprintf("g62h-syeh-%s.csv", as.Date(most_recent_row$update_date)))
+  if (!file.exists(data_filepath)) {
+    data <- readr::read_csv(most_recent_row$archive_link)
+    readr::write_csv(data, data_filepath)
+  } else {
+    data <- readr::read_csv(data_filepath)
+  }
+
+  data %>%
+    # Minor data adjustments and column renames. The date also needs to be dated
+    # back one, since the columns we use report previous day hospitalizations.
+    transmute(
+      geo_value = tolower(state),
+      time_value = date - 1L,
+      value = previous_day_admission_influenza_confirmed
+    ) %>%
+    # API seems to complete state level with 0s in some cases rather than NAs.
+    # Get something sort of compatible with that by summing to national with
+    # na.omit = TRUE. As otherwise we have some NAs from probably territories
+    # propagated to US level.
+    bind_rows(
+      (.) %>%
+        group_by(time_value) %>%
+        summarize(geo_value = "us", value = sum(value, na.rm = TRUE))
+    )
+}
+
+process_healthdata <- function(data) {
+  data %>%
+    # Make sure all the time_values are represented.
+    group_by(geo_value) %>%
+    tidyr::complete(time_value = tidyr::full_seq(time_value, period = 1L)) %>%
+    ungroup() %>%
+    # Convert to epidataframe. Then apply a rolling 7-day sum to the data.
+    as_epi_df() %>%
+    group_by(geo_value) %>%
+    epi_slide(
+      before = 6L,
+      ~ if (nrow(.x) == 7L) sum(.x$value) else NA_real_
+    ) %>%
+    ungroup() %>%
+    # Convert back to tibble so we can use left_join. Then join with state
+    # population information. Finally, change slide_value to a proportion of the
+    # population and remove the slide_value column.
+    as_tibble() %>%
+    left_join(
+      state_census %>%
+        transmute(
+          geo_value = abbr,
+          pop = pop
+        ),
+      by = c("geo_value")
+    ) %>%
+    mutate(
+      value = slide_value / 7 / pop * 100e3,
+      slide_value = NULL
+    ) %>%
+    select(-pop)
+}
