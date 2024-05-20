@@ -288,3 +288,85 @@ process_healthdata <- function(data) {
     ) %>%
     select(-pop)
 }
+
+make_forecaster_use_data_window <- function(forecaster, window) {
+  function(df_list, forecast_date, ...) {
+    dots <- list(...)
+    offset <- 1 - max(dots$ahead) - max(dots$lags) - window
+    forecaster(
+      df_list %>%
+        map(~ .x %>% filter(time_value >= forecast_date + offset)),
+      forecast_date,
+      ...
+    )
+  }
+}
+### Ported from covid-hosp-forecast on 2024-01-24
+
+#' This is a replacement for evalcast::get_predictions.
+get_predictions_new <- function(
+    df_list,
+    forecaster,
+    name_of_forecaster,
+    forecast_date,
+    response_data_source = "hhs",
+    response_data_signal = "confirmed_admissions_influenza_1d_prop_7dav",
+    incidence_period = "day",
+    forecaster_args = list()) {
+  out <- rlang::inject(
+    forecaster(
+      df_list = df_list,
+      forecast_date = forecast_date,
+      !!!forecaster_args
+    )
+  ) %>%
+    mutate(
+      forecaster = name_of_forecaster,
+      forecast_date = forecast_date,
+      data_source = response_data_source,
+      signal = response_data_signal,
+      target_end_date = forecast_date + ahead,
+      incidence_period = incidence_period,
+    )
+  class(out) <- c("predictions_cards", class(out))
+  out
+}
+
+#' Wrapper around epidatr::pub_covidcast that simplifies the input and formats
+#' the output.
+get_data <- function(source, signal, start_date, forecast_date) {
+  epidatr::pub_covidcast(
+    source,
+    signal,
+    "state",
+    "day",
+    "*",
+    epidatr::epirange(start_date, forecast_date),
+    as_of = strftime(forecast_date, format = "%Y-%m-%d")
+  ) %>%
+    {
+      if (nrow(.) == 0) {
+        stop(sprintf(
+          "No data found for source %s, signal %s, start_date %s, forecast_date %s",
+          source, signal, start_date, forecast_date
+        ))
+      }
+      .
+    } %>%
+    rename(
+      "data_source" = "source",
+    ) %>%
+    select(-direction) %>%
+    covidcast::as.covidcast_signal(signal)
+}
+
+make_forecaster_filter_geos <- function(forecaster, include_geos) {
+  function(df_list, forecast_date, ...) {
+    forecaster(
+      df_list %>%
+        map(~ .x %>% filter(geo_value %in% include_geos)),
+      forecast_date,
+      ...
+    )
+  }
+}

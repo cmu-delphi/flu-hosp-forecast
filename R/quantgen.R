@@ -99,7 +99,6 @@ zero_impute_matx <- function(matx, zero_impute) {
 quantgen_forecaster <- function(
     df_list,
     forecast_date,
-    signals,
     incidence_period,
     ahead,
     geo_type,
@@ -128,8 +127,8 @@ quantgen_forecaster <- function(
   # Check lags vector or list
   if (any(unlist(lags) < 0)) stop("All lags must be nonnegative.")
   if (!is.list(lags)) {
-    lags <- rep(list(lags), nrow(signals))
-  } else if (length(lags) != nrow(signals)) {
+    lags <- rep(list(lags), length(df_list))
+  } else if (length(lags) != length(df_list)) {
     stop(paste(
       "If `lags` is a list, it must have length equal to the number",
       "of signals."
@@ -139,8 +138,8 @@ quantgen_forecaster <- function(
   # Check transform function or list, and apply them if we need to
   if (!is.null(transform)) {
     if (!is.list(transform)) {
-      transform <- rep(list(transform), nrow(signals))
-    } else if (length(transform) != nrow(signals)) {
+      transform <- rep(list(transform), length(df_list))
+    } else if (length(transform) != length(df_list)) {
       stop(paste(
         "If `transform` is a list, it must have length equal to the",
         "number of signals."
