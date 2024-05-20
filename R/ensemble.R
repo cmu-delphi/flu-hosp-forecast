@@ -1,17 +1,15 @@
-make_ensemble_forecaster <- function(component_alternatives, offline_signal_dir) {
-  assert_that(is_string(offline_signal_dir))
+make_ensemble_forecaster <- function(component_alternatives) {
   return(
     function(df_list, forecast_date) {
       component_predictions_cards <- component_alternatives %>%
         map_dfr(function(alternative) {
-          get_predictions(
+          get_predictions_new(
+            df_list,
             alternative$forecaster,
             forecaster_name(alternative$forecaster),
-            alternative$signals,
             forecast_date,
             incidence_period = "day",
-            forecaster_args = list(),
-            offline_signal_dir = offline_signal_dir
+            forecaster_args = list()
           )
         })
       component_predictions_cards %>%

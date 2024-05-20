@@ -1,10 +1,10 @@
-
 get_quantile_predictions <- function(
+    df_list,
     forecast_due_date,
     reference_date,
     horizons,
-    enforced_latency
-    ) {
+    enforced_latency,
+    forecast_cache_dir = here::here("cache", "forecasters")) {
   geo_type <- "state"
   response_data_source <- "hhs"
   response_signal <- "confirmed_admissions_influenza_1d_prop_7dav"
@@ -22,43 +22,22 @@ get_quantile_predictions <- function(
     "sc", "sd", "tn", "tx", "ut", "vt", "va", "wa", "wv", "wi",
     "wy", "pr", "vi"
   )
-  offline_signal_dir <- here::here("cache", "evalcast")
-  forecast_cache_dir <- here::here("cache", "forecasters")
   n_core <- parallel::detectCores() - 1
-
-  make_start_day_ar <- function(ahead, ntrain, lags) {
-    # NOTE: Why eval?
-    offset <- eval(1 - max(ahead) - ntrain - max(lags))
-    start_day_ar <- function(forecast_date) {
-      return(as.Date(forecast_date) + offset)
-    }
-    return(start_day_ar)
-  }
-  # Use the larger `ntrain` value to make sure we always request and store in
-  # the cache the full date range for each signal.
-  start_day_ar <- make_start_day_ar(ahead, ntrain_nowindow, lags)
 
   ###############################################################################
   # LEARN THE QAR MODEL AND SAVE OUTPUT                                         #
   ###############################################################################
   cmu_forecaster_name <- "CMU-TimeSeries"
 
-  signals_ar <- tibble::tibble(
-    data_source = unique(c(response_data_source)),
-    signal = unique(c(response_signal)),
-    start_day = list(start_day_ar),
-    geo_values = list(states_dc_pr_vi),
-    geo_type = geo_type
-  )
-
   production_forecaster_shortwindow_latencyfix <- list(
     forecaster = quantgen_forecaster %>%
+      make_forecaster_filter_geos(states_dc_pr_vi) %>%
       make_forecaster_account_for_response_latency() %>%
       make_latency_enforced_forecaster(
         min_latency_to_enforce = enforced_latency
       ) %>%
+      make_forecaster_use_data_window(window = ntrain_nowindow) %>%
       make_forecaster_with_prespecified_args(
-        signals = signals_ar,
         incidence_period = "day",
         ahead = ahead,
         geo_type = geo_type,
@@ -71,18 +50,18 @@ get_quantile_predictions <- function(
         lp_solver = "gurobi",
         n_core = n_core
       ) %>%
-      make_named_forecaster("shortwindow_latencyfix"),
-    signals = signals_ar
+      make_named_forecaster("shortwindow_latencyfix")
   )
 
   production_forecaster_nowindow_latencyfix <- list(
     forecaster = quantgen_forecaster %>%
+      make_forecaster_filter_geos(states_dc_pr_vi) %>%
       make_forecaster_account_for_response_latency() %>%
       make_latency_enforced_forecaster(
         min_latency_to_enforce = enforced_latency
       ) %>%
+      make_forecaster_use_data_window(window = ntrain_nowindow) %>%
       make_forecaster_with_prespecified_args(
-        signals = signals_ar,
         incidence_period = "day",
         ahead = ahead,
         geo_type = geo_type,
@@ -95,23 +74,24 @@ get_quantile_predictions <- function(
         lp_solver = "gurobi",
         n_core = n_core
       ) %>%
-      make_named_forecaster("nowindow_latencyfix"),
-    signals = signals_ar
+      make_named_forecaster("nowindow_latencyfix")
   )
 
   ens1 <- make_ensemble_forecaster(
     list(
       production_forecaster_shortwindow_latencyfix,
       production_forecaster_nowindow_latencyfix
-    ),
-    offline_signal_dir = offline_signal_dir
+    )
   ) %>% make_caching_forecaster("ens1", forecast_cache_dir)
 
   t0 <- Sys.time()
-  preds_state <- get_predictions(ens1,
+  preds_state <- get_predictions_new(
+    df_list,
+    ens1,
     cmu_forecaster_name,
-    signals_ar,
     forecast_due_date,
+    response_data_source = response_data_source,
+    response_data_signal = response_signal,
     incidence_period = "day",
     forecaster_args = list()
   )
