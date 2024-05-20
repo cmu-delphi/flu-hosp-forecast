@@ -1,241 +1,95 @@
-#### BEGIN copied/adapted content from cmu-delphi/hospitalization-forecaster
-#### production-scripts/plotting.R as of 2022-10-17
+# Version: 2024-04-23
 
+plot_forecasts <- function(predictions_cards, forecast_date, exclude_geos, geo_type, data_7dav_override = NULL) {
+  assert_that(nrow(predictions_cards) > 0)
+  assert_that(geo_type %in% c("state", "nation"))
 
-get_quantiles_df <- function(predictions_cards, intervals = c(.5, .9), ...) {
-  predictions_cards <- predictions_cards %>%
-    dplyr::select(
-      .data$geo_value, .data$quantile,
-      .data$value, .data$forecaster, .data$forecast_date,
-      .data$target_end_date
+  start_day <- as.Date("2022-10-01")
+
+  if (is.null(data_7dav_override)) {
+    signal_data <- epidatr::pub_covidcast(
+      "hhs",
+      "confirmed_admissions_influenza_1d_7dav",
+      geo_type,
+      "day",
+      "*",
+      epirange(start_day, forecast_date)
     )
-
-  lower_bounds <- predictions_cards %>%
-    select(.data$quantile) %>%
-    filter(.data$quantile < 0.5) %>%
-    unique() %>%
-    pull()
-  quantiles_to_plot <- as.integer(sort(
-    round(500L * (1 + intervals %o% c(-1L, 1L)))
-  ))
-
-  quantiles_df <- predictions_cards %>%
-    filter(as.integer(round(.data$quantile * 1000)) %in% c(quantiles_to_plot)) %>%
-    mutate(
-      endpoint_type = if_else(.data$quantile < 0.5, "lower", "upper"),
-      alp = if_else(.data$endpoint_type == "lower",
-        format(2 * .data$quantile, digits = 3, nsmall = 3),
-        format(2 * (1 - .data$quantile), digits = 3, nsmall = 3)
-      ),
-      interval = forcats::fct_rev(
-        paste0((1 - as.numeric(.data$alp)) * 100, "%")
-      )
-    ) %>%
-    select(-.data$quantile, -.data$alp) %>%
-    pivot_wider(names_from = "endpoint_type", values_from = "value")
-
-  return(quantiles_df)
-}
-
-get_points_df <- function(predictions_cards) {
-  points_df <- predictions_cards %>%
-    filter(as.integer(round(.data$quantile * 1000)) == 500L |
-      is.na(.data$quantile))
-  if (any(is.na(points_df$quantile))) {
-    points_df <- points_df %>%
-      pivot_wider(names_from = "quantile", values_from = "value") %>%
-      mutate(value = if_else(!is.na(.data$`NA`), .data$`NA`, .data$`0.5`)) %>%
-      select(-.data$`0.5`, -.data$`NA`)
   } else {
-    points_df <- points_df %>%
-      select(-.data$quantile)
+    if (geo_type == "state") {
+      signal_data <- data_7dav_override %>%
+        filter(geo_value != "us", start_day <= time_value)
+    } else if (geo_type == "nation") {
+      signal_data <- data_7dav_override %>%
+        filter(geo_value == "us", start_day <= time_value)
+    }
   }
+  signal_data <- signal_data %>%
+    filter(!.data$geo_value %in% exclude_geos) %>%
+    select(.data$geo_value, .data$time_value, .data$value) %>%
+    mutate(
+      data_source = "hhs",
+      forecaster = "hhs hosp truth",
+      value = 7L * .data$value
+    ) %>%
+    rename(target_end_date = .data$time_value)
 
-  return(points_df)
-}
+  # Setup plot
+  g <- ggplot(signal_data, mapping = aes(
+    x = .data$target_end_date,
+    color = .data$forecaster,
+    fill = .data$forecaster
+  )) +
+    geom_line(mapping = aes(y = .data$value))
 
-plot_quantiles <- function(g, quantiles_df) {
-  n_quantiles <- nlevels(quantiles_df$interval)
-  l_quantiles <- levels(quantiles_df$interval)
-
-  alp <- c(.4, .2, .1)
-  for (qq in n_quantiles:1) {
+  # Plot (symmetric) quantiles
+  quantiles <- c(0.75, 0.95)
+  alphas <- c(0.4, 0.2)
+  for (i in seq_along(quantiles)) {
+    q <- quantiles[i]
+    a <- alphas[i]
     g <- g +
       geom_ribbon(
-        data = quantiles_df %>%
-          filter(.data$interval == l_quantiles[qq]),
+        data = predictions_cards %>%
+          filter(near(.data$quantile, q) | near(.data$quantile, 1 - q)) %>%
+          mutate(
+            quantile = ifelse(near(.data$quantile, q), "upper", "lower") %>%
+              as.factor()
+          ) %>%
+          pivot_wider(names_from = "quantile", values_from = "value"),
         mapping = aes(
           ymin = .data$lower,
           ymax = .data$upper,
-          group = interaction(.data$forecast_date, .data$forecaster)
+          group = interaction(.data$forecast_date, .data$forecaster),
+          color = NULL
         ),
-        alpha = alp[qq]
+        alpha = a
       )
   }
 
-  return(g)
-}
-
-plot_points <- function(g, points_df) {
-  g <- g + geom_point(
-    data = points_df,
-    mapping = aes(
-      y = .data$value,
-      group = interaction(.data$forecast_date, .data$forecaster)
-    )
-  )
-
-  return(g)
-}
-
-plot_state_forecasters <- function(predictions_cards, exclude_geos = c(), start_day = NULL, ncol = 5, data_7dav_override = NULL) {
-  if (nrow(predictions_cards) == 0) {
-    return(NULL)
-  }
-
-  predictions_cards %<>% filter(
-    !geo_value %in% exclude_geos
-  )
-
-  if (is.null(data_7dav_override)) {
-    td1 <- epidatr::pub_covidcast(
-                      "hhs",
-                      "confirmed_admissions_influenza_1d_7dav",
-                      "state",
-                      "day",
-                      "*",
-                      epirange(start_day, 20300101)
-                    )
-  } else {
-    td1 <- data_7dav_override %>%
-      filter(geo_value != "us", as.Date(start_day) <= time_value)
-  }
-  td1 <- td1 %>%
-    mutate(
-      value = 7L * .data$value,
-      data_source = "hhs"
-    ) %>%
-    rename(target_end_date = time_value)
-  td2 <- epidatr::pub_covidcast(
-    "chng",
-    "smoothed_adj_outpatient_flu",
-    "state",
-    "day",
-    "*",
-    epirange(start_day, 20300101)
-  ) %>%
-    rename(target_end_date = time_value) %>%
-    mutate(
-      data_source = "chng"
-    )
-  td1.max <- td1 %>%
-    group_by(geo_value) %>%
-    summarize(max_value = max(value))
-  td2.max <- td2 %>%
-    group_by(geo_value) %>%
-    summarize(max_value = max(value))
-  td2.max <- td2.max %>%
-    left_join(td1.max, by = "geo_value", suffix = c(".2", ".1")) %>%
-    mutate(max_ratio = max_value.1 / max_value.2)
-  td2 <- td2 %>%
-    left_join(td2.max, by = "geo_value") %>%
-    mutate(scaled_value = value * max_ratio)
-  td1 <- td1 %>% mutate(forecaster = "hhs hosp truth")
-  td2 <- td2 %>% mutate(forecaster = "chng smoothed_adj_outpatient_flu current, scaled")
-
-  # Setup plot
-  g <- ggplot(td1, mapping = aes(x = .data$target_end_date, color = .data$forecaster, fill = .data$forecaster))
-
-  points_df <- get_points_df(predictions_cards)
-  g <- plot_points(g, points_df)
-
-  quantiles_df <- get_quantiles_df(predictions_cards)
-  g <- plot_quantiles(g, quantiles_df)
-
-  # Plot truth data by geo
+  # Plot median
   g <- g +
-    geom_line(mapping = aes(y = .data$value)) +
-    geom_line(data = td2, mapping = aes(x = .data$target_end_date, y = .data$scaled_value)) +
-    facet_wrap(~ .data$geo_value, scales = "free_y", ncol = ncol, drop = TRUE) +
-    theme(legend.position = "top", legend.text = element_text(size = 7))
-
-  return(g)
-}
-
-plot_nation_forecasters <- function(predictions_cards, exclude_geos = c(), start_day = NULL, ncol = 5, data_7dav_override = NULL) {
-  if (nrow(predictions_cards) == 0) {
-    return(NULL)
-  }
-
-  predictions_cards %<>% filter(
-    !geo_value %in% exclude_geos
-  )
-
-  if (is.null(data_7dav_override)) {
-    td1 <- epidatr::pub_covidcast(
-                      "hhs",
-                      "confirmed_admissions_influenza_1d_7dav",
-                      "state",
-                      "day",
-                      "*",
-                      epirange(start_day, 20300101)
-                    ) %>%
-      mutate(
-        value = 7L * .data$value,
-        data_source = "hhs"
-      ) %>%
-      rename(target_end_date = time_value) %>%
-      group_by(
-        target_end_date
-      ) %>%
-      summarize(value = sum(value))
-  } else {
-    td1 <- data_7dav_override %>%
-      filter(geo_value == "us", as.Date(start_day) <= time_value) %>%
-      mutate(
-        value = 7L * .data$value,
-        data_source = "hhs"
-      ) %>%
-      rename(target_end_date = time_value)
-  }
-  td2 <- epidatr::pub_covidcast(
-    "chng",
-    "smoothed_adj_outpatient_flu",
-    "nation",
-    "day",
-    "*",
-    epirange(start_day, 20300101)
-  ) %>%
-    select(
-      target_end_date = time_value,
-      value
+    geom_point(
+      data = predictions_cards %>%
+        filter(near(.data$quantile, 0.5)),
+      mapping = aes(
+        y = .data$value,
+        group = interaction(.data$forecast_date, .data$forecaster)
+      ),
+      size = 0.125
     )
-  td1.max <- td1 %>%
-    summarize(max_value = max(value)) %>%
-    pull(max_value)
-  td2.max <- td2 %>%
-    summarize(max_value = max(value)) %>%
-    pull(max_value)
-  td2 <- td2 %>%
-    mutate(scaled_value = value * td1.max / td2.max)
 
-  # Setup plot
-  g <- ggplot(td1, mapping = aes(x = .data$target_end_date))
-
-  quantiles_df <- get_quantiles_df(predictions_cards)
-  g <- plot_quantiles(g, quantiles_df)
-
-  points_df <- get_points_df(predictions_cards)
-  g <- plot_points(g, points_df)
-
-  # Plot truth data by geo
-  g <- g +
-    geom_line(mapping = aes(y = .data$value, color = "confirmed admissions")) +
-    geom_line(data = td2, mapping = aes(x = .data$target_end_date, y = .data$scaled_value, color = "chng smoothed_adj_outpatient_flu, scaled")) +
-    labs(fill = "Reported Signal") +
-    theme(legend.position = "top", legend.text = element_text(size = 7))
+  if (geo_type == "state") {
+    # Add lines, facet, and theme
+    g <- g +
+      facet_wrap(~ .data$geo_value, scales = "free_y", ncol = 2, drop = TRUE) +
+      theme(legend.position = "top", legend.text = element_text(size = 7))
+  } else if (geo_type == "nation") {
+    # Add lines  and theme
+    g +
+      labs(fill = "Reported Signal") +
+      theme(legend.position = "top", legend.text = element_text(size = 7))
+  }
 
   return(g)
 }
-
-#### END copied/adapted content

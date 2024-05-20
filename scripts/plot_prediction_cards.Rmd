@@ -6,12 +6,27 @@ output: html_document
 params:
   exclude_geos: !r character(0L)
   predictions_file: !r character(0L)
+  forecast_generation_date: !r Sys.Date()
 ---
+
+```{css, echo=FALSE}
+body {
+  display: block;
+  max-width: 1280px !important;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+body .main-container {
+  max-width: 1280px !important;
+  width: 1280px !important;
+}
+```
 
 ```{r setup, include=FALSE, echo=FALSE}
 source(here::here("R", "load_all.R"))
 
-converted_healthdata_1d <- get_health_data(forecast_generation_date)
+converted_healthdata_1d <- get_health_data(params$forecast_generation_date)
 # Same as process_healthdata(), but without the population scaling and keep as 7 day sums
 converted_healthdata_7d <- converted_healthdata_1d %>%
   group_by(geo_value) %>%
@@ -31,49 +46,50 @@ converted_healthdata_7d <- converted_healthdata_1d %>%
   as_tibble()
 
 flu_forecasts <- read_csv(params$predictions_file, show_col_types = FALSE) %>%
-  mutate(
-    forecast_date = reference_date,
-    quantile = output_type_id
-  ) %>%
   filter(output_type != "pmf") %>%
   mutate(
-    quantile = parse_number(quantile),
-    geo_value = as.factor(geo_value),
+    forecast_date = reference_date,
+    quantile = parse_number(output_type_id),
+    geo_value = as.factor(geo_value)
+  ) %>%
+  select(
+    forecast_date,
+    geo_value,
+    target_end_date,
+    forecaster,
+    quantile,
+    value
   )
 ```
 
 ## Trajectory plots
 
-- Fan displays 50/80/95% confidence intervals
-- Black line is `confirmed_admissions_influenza_1d_7d`.
+Fan displays 5/25/50/75/95% quantiles.
 
-```{r, fig.height = 80, fig.width = 15, echo=FALSE}
-# setup the plot and join corrections to the truth
-plot_state_forecasters(
+```{r, fig.height = 60, fig.width = 12, echo=FALSE}
+plot_forecasts(
   flu_forecasts %>% filter(geo_value != "us"),
-  exclude_geos = params$exclude_geos,
-  start_day = "2022-10-01",
-  ncol = 2,
+  params$forecast_generation_date,
+  params$exclude_geos,
+  "state",
   data_7dav_override = converted_healthdata_7d
 ) %>%
   suppressMessages() %>%
-  suppressWarnings() %>%
-  plotly::ggplotly()
+  suppressWarnings()
 ```
 
 ```{r, fig.height = 10, fig.width = 15, echo=FALSE}
 if ("us" %in% params$exclude_geos) {
   print("us excluded")
 } else {
-  # setup the plot and join corrections to the truth
-  plot_nation_forecasters(
+  plot_forecasts(
     flu_forecasts %>% filter(geo_value == "us"),
-    exclude_geos = params$exclude_geos,
-    start_day = "2022-10-01",
+    params$forecast_generation_date,
+    params$exclude_geos,
+    "nation",
     data_7dav_override = converted_healthdata_7d
   ) %>%
     suppressMessages() %>%
-    suppressWarnings() %>%
-    plotly::ggplotly()
+    suppressWarnings()
 }
 ```
