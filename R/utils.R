@@ -221,6 +221,7 @@ get_health_data <- function(as_of) {
   }
 
   most_recent_row <- meta_data %>%
+    # update_date is actually a time, so we need to filter for the day after.
     filter(update_date <= as_of + 1) %>%
     arrange(desc(update_date)) %>%
     slice(1)
@@ -276,10 +277,7 @@ process_healthdata <- function(data) {
     as_tibble() %>%
     left_join(
       state_census %>%
-        transmute(
-          geo_value = abbr,
-          pop = pop
-        ),
+        transmute(geo_value = abbr),
       by = c("geo_value")
     ) %>%
     mutate(
