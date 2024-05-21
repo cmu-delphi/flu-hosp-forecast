@@ -21,12 +21,10 @@ TODO: stress-test these findings, e.g.
 - try a dataset where one geo has a different min time_value
 
 ```{r}
-library(epipredict)
-library(epidatr)
-library(tidyverse)
-library(magrittr)
-library(covidcast)
-source(here::here("code", "quantgen.R"))
+source(here::here("R", "load_all.R"))
+```
+
+```{r}
 # Get data
 data <- covidcast(
     "hhs",
@@ -171,12 +169,6 @@ Results:
 2. after bugfixing `step_training_window`, we can do the next comparison step
 
 ```{r}
-library(epipredict)
-library(epidatr)
-library(tidyverse)
-library(magrittr)
-library(covidcast)
-library(recipes)
 # Data setup
 orig <- covidcast_signal(
     "hhs",

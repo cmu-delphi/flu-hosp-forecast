@@ -31,3 +31,6 @@ install-system-deps:
 install-r-deps: renv
 	@Rscript -e "install.packages(c('pak', 'renv', 'rspm'))"
 	@Rscript -e "rspm::enable(); renv::restore()"
+
+style:
+	Rscript -e "styler::style_dir(exclude_dirs = c('renv', 'venv'))"

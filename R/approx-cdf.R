@@ -9,14 +9,6 @@
 # Some additional notes in approx_cdf_from_quantiles() below.
 
 
-library("assertthat")
-library("dplyr")
-library("ggplot2")
-library("pipeR")
-library("purrr")
-library("rlang")
-
-
 ## piecewise linear + jumps cadlag function starting with y=0 ending with any nonneg y, constant beyond edges
 approx_cdf <- function(xs, ys.before, ys.at) {
   assert_that(is.numeric(xs))

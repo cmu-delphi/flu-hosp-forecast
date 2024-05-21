@@ -25,54 +25,55 @@
 #   Appendix 1.
 #
 
-library(checkmate)
-library(dplyr)
-library(epidatr)
-library(epiprocess)
-library(readr)
-library(rlang)
-library(tibble)
-library(tidyr)
-source(here::here("R", "approx-cdf.R"))
-source(here::here("R", "utils.R"))
-
 
 get_direction_predictions <- function(
     forecast_due_date,
     reference_date,
     quantile_predictions,
-    enforced_latency) {
+    enforced_latency,
+    data_1d_override = NULL) {
   augmented_location_data <- get_flusight_location_data()
   state_pop <- get_state_data()
 
-  # We need to combine the quantile forecasts with recent observations in order to
-  # do direction calculations.
-  # TODO: Using a workaround for https://github.com/cmu-delphi/epidatr/issues/194
-  short_snapshot <- bind_rows(
-    epidatr::pub_covidcast(
-      "hhs",
-      "confirmed_admissions_influenza_1d",
-      "state",
-      "day",
-      "*",
-      epirange(forecast_due_date - 20L, forecast_due_date),
-      as_of = strftime(forecast_due_date, "%Y-%m-%d")
-    ),
-    epidatr::pub_covidcast(
-      "hhs",
-      "confirmed_admissions_influenza_1d",
-      "nation",
-      "day",
-      "*",
-      epirange(forecast_due_date - 20L, forecast_due_date),
-      as_of = strftime(forecast_due_date, "%Y-%m-%d")
+  if (is.null(data_1d_override)) {
+    # We need to combine the quantile forecasts with recent observations in order to
+    # do direction calculations.
+    # TODO: Using a workaround for https://github.com/cmu-delphi/epidatr/issues/194
+    short_snapshot <- bind_rows(
+      epidatr::pub_covidcast(
+                 "hhs",
+                 "confirmed_admissions_influenza_1d",
+                 "state",
+                 "day",
+                 "*",
+                 epirange(forecast_due_date - 20L, forecast_due_date),
+                 as_of = strftime(forecast_due_date, "%Y-%m-%d")
+               ),
+      epidatr::pub_covidcast(
+                 "hhs",
+                 "confirmed_admissions_influenza_1d",
+                 "nation",
+                 "day",
+                 "*",
+                 epirange(forecast_due_date - 20L, forecast_due_date),
+                 as_of = strftime(forecast_due_date, "%Y-%m-%d")
+               )
     )
-  )
+  } else {
+    stopifnot(all(c(tolower(state.abb),"dc","pr") %in% data_1d_override$geo_value))
+    stopifnot("us" %in% data_1d_override$geo_value)
+    short_snapshot <- data_1d_override %>%
+      filter(forecast_due_date - 20L <= time_value,
+             time_value <= forecast_due_date)
+  }
 
   # By the cadence of HHS data, we expect to have "official"/non-"preliminary"
   # versions of data up to Friday 4 days back from the forecast due date (this
   # is in enforced_latency). We get the latest Sat-Fri sum of the "official"
   # data available.
+  if (max(short_snapshot$time_value) < forecast_due_date - enforced_latency) {
+    cli::cli_abort("We should have time values with latency equal to (or less than but that's not expected either) the enforced latency.  Did the API or other upstream source not get an update yet?")
+  }
   reference_7d_counts <- short_snapshot %>%
     filter(time_value <= forecast_due_date - enforced_latency) %>%
     group_by(geo_value) %>%
