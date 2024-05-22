@@ -124,6 +124,7 @@ quantgen_forecaster <- function(
   } else {
     n_core <- 1
   }
+
   # Check lags vector or list
   if (any(unlist(lags) < 0)) stop("All lags must be nonnegative.")
   if (!is.list(lags)) {
@@ -183,6 +184,7 @@ quantgen_forecaster <- function(
   predict_names <- names(as.list(args(predict_fun)))
   train_params <- params[names(params) %in% train_names]
   predict_params <- params[names(params) %in% predict_names]
+
   # This controls how many threads Gurobi uses. By default (0) Gurobi uses all
   # virtual cores, but we want to limit this, so we can parallelize across
   # aheads.

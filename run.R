@@ -87,7 +87,6 @@ combined_predictions <- get_production_forecasts(
   ) %>%
   arrange(location, reference_date, target, horizon, output_type, output_type_id)
 
-
 unfiltered_csv_path <- fs::path(
   output_dir,
   sprintf("%s-CMU-TimeSeries-unfiltered.csv", CDC_REFERENCE_DATE)
